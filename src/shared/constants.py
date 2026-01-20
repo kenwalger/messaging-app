@@ -16,9 +16,14 @@ MAX_MESSAGE_PAYLOAD_SIZE_KB = 50
 MAX_DELIVERY_RETRIES = 5
 
 # Network constants
-REST_POLLING_INTERVAL_SECONDS = 30
-WEBSOCKET_RECONNECT_TIMEOUT_SECONDS = 15
-CLOCK_SKEW_TOLERANCE_MINUTES = 2
+REST_POLLING_INTERVAL_SECONDS = 30  # Per Resolved TBDs
+WEBSOCKET_RECONNECT_TIMEOUT_SECONDS = 15  # Per Resolved Clarifications
+CLOCK_SKEW_TOLERANCE_MINUTES = 2  # Per Resolved Clarifications
+
+# ACK and retry constants per Resolved Clarifications and Lifecycle Playbooks (#15)
+ACK_TIMEOUT_SECONDS = 30  # Timeout for waiting for delivery ACK
+RETRY_BACKOFF_BASE_SECONDS = 1  # Base delay for exponential backoff (2^retry_count seconds)
+MAX_BACKOFF_SECONDS = 60  # Maximum backoff delay cap
 
 # API endpoints per API Contracts (#10)
 API_ENDPOINT_SEND_MESSAGE = "/api/message/send"

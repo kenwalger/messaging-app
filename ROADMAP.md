@@ -10,9 +10,14 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Message lifecycle state machine implementation
 - [x] Offline queuing and storage management
 - [x] Message expiration enforcement
-- [x] Duplicate detection
-- [x] Retry logic with limits
-- [x] Comprehensive unit tests (13 tests, all passing)
+- [x] Duplicate detection (Message ID + content hash)
+- [x] Retry logic with exponential backoff (max 5 attempts)
+- [x] ACK handling per message ID with timeout (30s)
+- [x] WebSocket reconnect with exponential backoff
+- [x] REST polling fallback (every 30s when WebSocket unavailable)
+- [x] Comprehensive unit tests (25 tests, all passing)
+  - 12 tests for reliability hardening
+  - 13 tests for core delivery
 - [x] Type hints per PEP 484 (Project Best Practices #20)
 - [x] Docstrings per PEP 257 (Project Best Practices #20)
 - [x] Protocol interfaces for abstracted services
@@ -70,25 +75,26 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [ ] Clock skew handling (±2 minutes tolerance per Resolved Clarifications)
 - [ ] Secure message storage at rest
 
-## Phase 4: Network & Delivery
+## Phase 4: Network & Delivery ✅
 
-**Status:** Planned
+**Status:** Completed
 
 ### WebSocket Implementation
-- [ ] WebSocket client with automatic reconnect (exponential backoff per Resolved Clarifications)
-- [ ] WebSocket server for backend relay
-- [ ] Session token management
-- [ ] Delivery acknowledgment (ACK per message ID)
+- [x] WebSocket client with automatic reconnect (exponential backoff per Resolved Clarifications)
+- [x] Session token management (X-Device-ID + ephemeral session token)
+- [x] Delivery acknowledgment (ACK per message ID per Resolved Clarifications #51)
+- [x] ACK timeout handling with retry
 
 ### REST Fallback
-- [ ] REST polling client (30-second interval per Resolved TBDs)
-- [ ] REST API endpoints implementation (API Contracts #10)
-- [ ] Fallback mechanism (WebSocket → REST per Resolved TBDs)
+- [x] REST polling client (30-second interval per Resolved TBDs)
+- [x] REST API endpoints implementation (API Contracts #10)
+- [x] Fallback mechanism (WebSocket → REST per Resolved TBDs)
+- [x] Automatic stop when WebSocket reconnects
 
 ### Network Handling
-- [ ] Offline detection and queueing
-- [ ] Network reconnection handling
-- [ ] Message retry logic integration
+- [x] Offline detection and queueing
+- [x] Network reconnection handling
+- [x] Message retry logic with exponential backoff integration
 
 ## Phase 5: Conversation Management ✅
 

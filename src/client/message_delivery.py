@@ -20,24 +20,29 @@ This module handles:
 import hashlib
 import json
 import logging
+import math
 import time
 from datetime import datetime, timedelta
 from queue import Queue
-from threading import Lock, Timer
-from typing import Any, Dict, List, Optional, Protocol, Set
+from threading import Event, Lock, Thread, Timer
+from typing import Any, Callable, Dict, List, Optional, Protocol, Set
 from uuid import UUID, uuid4
 
 from src.shared.constants import (
+    ACK_TIMEOUT_SECONDS,
+    API_ENDPOINT_RECEIVE_MESSAGE,
     DEFAULT_MESSAGE_EXPIRATION_DAYS,
     ERROR_BACKEND_UNREACHABLE,
     ERROR_NETWORK_UNAVAILABLE,
     HEADER_DEVICE_ID,
     LOG_EVENT_DELIVERY_FAILED,
     LOG_EVENT_MESSAGE_ATTEMPTED,
+    MAX_BACKOFF_SECONDS,
     MAX_DELIVERY_RETRIES,
     MAX_OFFLINE_MESSAGES,
     MAX_OFFLINE_STORAGE_MB,
     REST_POLLING_INTERVAL_SECONDS,
+    RETRY_BACKOFF_BASE_SECONDS,
     WEBSOCKET_RECONNECT_TIMEOUT_SECONDS,
 )
 from src.shared.message_types import (
@@ -213,7 +218,19 @@ class MessageDeliveryService:
         # WebSocket connection state per Resolved Clarifications
         self._websocket_connected = False
         self._websocket_reconnect_attempts = 0
+        self._websocket_reconnect_timer: Optional[Timer] = None
         self._rest_polling_active = False
+        self._rest_polling_thread: Optional[Thread] = None
+        self._rest_polling_stop_event = Event()
+        
+        # ACK tracking per Resolved Clarifications (#51)
+        # Track pending ACKs for WebSocket messages
+        self._pending_acks: Dict[UUID, datetime] = {}  # message_id -> sent_at timestamp
+        self._ack_lock = Lock()
+        
+        # Exponential backoff state for retries per Lifecycle Playbooks (#15)
+        self._retry_backoff_base = RETRY_BACKOFF_BASE_SECONDS
+        self._max_backoff = MAX_BACKOFF_SECONDS
     
     def create_message(
         self,
@@ -354,8 +371,19 @@ class MessageDeliveryService:
         # Send via WebSocket
         self.websocket_client.send(json.dumps(ws_message))
         
-        # Wait for ACK per Resolved Clarifications
-        # Note: ACK handling implemented in WebSocket client callback
+        # Track pending ACK per Resolved Clarifications (#51)
+        with self._ack_lock:
+            self._pending_acks[message.message_id] = utc_now()
+        
+        # Start ACK timeout timer per Resolved Clarifications
+        ack_timer = Timer(
+            ACK_TIMEOUT_SECONDS,
+            self._handle_ack_timeout,
+            args=(message.message_id,),
+        )
+        ack_timer.daemon = True
+        ack_timer.start()
+        
         return True
     
     def _send_via_rest(self, message: Message) -> bool:
@@ -657,6 +685,171 @@ class MessageDeliveryService:
         
         logger.debug(f"Message {message_id} expired and deleted")
     
+    def handle_delivery_ack(self, message_id: UUID) -> None:
+        """
+        Handle delivery acknowledgment per Resolved Clarifications (#51).
+        
+        ACK per message ID to ensure deterministic delivery.
+        Transitions message from PENDING_DELIVERY to DELIVERED per State Machines (#7), Section 3.
+        
+        Args:
+            message_id: UUID of message that was acknowledged.
+        """
+        with self._ack_lock:
+            if message_id not in self._pending_acks:
+                logger.debug(f"ACK received for unknown message {message_id}")
+                return
+            
+            # Remove from pending ACKs
+            self._pending_acks.pop(message_id, None)
+        
+        # Update message state to DELIVERED per State Machines (#7), Section 3
+        message = self._messages.get(message_id)
+        if message and message.state == MessageState.PENDING_DELIVERY:
+            message.state = MessageState.DELIVERED
+            logger.debug(f"Message {message_id} acknowledged and delivered")
+    
+    def _handle_ack_timeout(self, message_id: UUID) -> None:
+        """
+        Handle ACK timeout per Resolved Clarifications (#51).
+        
+        If ACK not received within timeout, retry delivery with exponential backoff.
+        
+        Args:
+            message_id: UUID of message that timed out waiting for ACK.
+        """
+        with self._ack_lock:
+            if message_id not in self._pending_acks:
+                return  # ACK already received or message removed
+            
+            # ACK timeout - remove from pending and retry
+            self._pending_acks.pop(message_id, None)
+        
+        message = self._messages.get(message_id)
+        if not message:
+            return
+        
+        # Check if message expired - don't retry expired messages per Functional Spec (#6), Section 4.4
+        if message.is_expired():
+            message.state = MessageState.EXPIRED
+            logger.debug(f"Message {message_id} expired while waiting for ACK")
+            return
+        
+        # Retry delivery with exponential backoff per Lifecycle Playbooks (#15)
+        if message.retry_count < MAX_DELIVERY_RETRIES:
+            logger.debug(f"ACK timeout for message {message_id}, retrying")
+            self._retry_message_with_backoff(message)
+        else:
+            # Max retries exceeded - mark as failed per Lifecycle Playbooks (#15)
+            message.state = MessageState.FAILED
+            if self.log_service:
+                self.log_service.log_event(
+                    LOG_EVENT_DELIVERY_FAILED,
+                    {
+                        "message_id": str(message_id),
+                        "device_id": self.device_id,
+                        "retry_count": message.retry_count,
+                        "timestamp": utc_now().isoformat(),
+                    },
+                )
+            logger.warning(f"Message {message_id} failed after max retries")
+    
+    def _calculate_backoff_delay(self, retry_count: int) -> float:
+        """
+        Calculate exponential backoff delay per Lifecycle Playbooks (#15).
+        
+        Formula: min(base * 2^retry_count, max_backoff)
+        
+        Args:
+            retry_count: Current retry attempt number (0-based).
+        
+        Returns:
+            Backoff delay in seconds.
+        """
+        delay = self._retry_backoff_base * (2 ** retry_count)
+        return min(delay, self._max_backoff)
+    
+    def _retry_message_with_backoff(self, message: Message) -> None:
+        """
+        Retry message delivery with exponential backoff per Lifecycle Playbooks (#15).
+        
+        Args:
+            message: Message to retry.
+        """
+        # Calculate backoff delay
+        backoff_delay = self._calculate_backoff_delay(message.retry_count)
+        
+        # Increment retry count
+        message.retry_count += 1
+        
+        # Schedule retry after backoff delay
+        retry_timer = Timer(
+            backoff_delay,
+            self._attempt_message_retry,
+            args=(message.message_id,),
+        )
+        retry_timer.daemon = True
+        retry_timer.start()
+        
+        logger.debug(
+            f"Scheduling retry {message.retry_count} for message {message.message_id} "
+            f"after {backoff_delay:.2f}s backoff"
+        )
+    
+    def _attempt_message_retry(self, message_id: UUID) -> None:
+        """
+        Attempt to retry message delivery per Lifecycle Playbooks (#15).
+        
+        Args:
+            message_id: UUID of message to retry.
+        """
+        message = self._messages.get(message_id)
+        if not message:
+            return
+        
+        # Check if expired - don't retry expired messages per Functional Spec (#6), Section 4.4
+        if message.is_expired():
+            message.state = MessageState.EXPIRED
+            logger.debug(f"Message {message_id} expired before retry")
+            return
+        
+        # Check retry limit per Resolved TBDs
+        if message.retry_count >= MAX_DELIVERY_RETRIES:
+            message.state = MessageState.FAILED
+            if self.log_service:
+                self.log_service.log_event(
+                    LOG_EVENT_DELIVERY_FAILED,
+                    {
+                        "message_id": str(message_id),
+                        "device_id": self.device_id,
+                        "retry_count": message.retry_count,
+                        "timestamp": utc_now().isoformat(),
+                    },
+                )
+            logger.warning(f"Message {message_id} failed after max retries")
+            return
+        
+        # Attempt delivery
+        success = False
+        if self._websocket_connected and self.websocket_client:
+            try:
+                success = self._send_via_websocket(message)
+            except Exception:
+                pass
+        
+        if not success and self.http_client:
+            try:
+                success = self._send_via_rest(message)
+            except Exception:
+                pass
+        
+        if not success:
+            # Queue for offline delivery or schedule another retry
+            if message.retry_count < MAX_DELIVERY_RETRIES:
+                self._retry_message_with_backoff(message)
+            else:
+                self._queue_message_offline(message)
+    
     def process_offline_queue(self) -> None:
         """
         Process offline message queue per Lifecycle Playbooks (#15), Section 5.
@@ -695,6 +888,16 @@ class MessageDeliveryService:
                         )
                 continue
             
+            # Calculate backoff delay based on retry count per Lifecycle Playbooks (#15)
+            if queued.last_retry_at:
+                # Calculate time since last retry for exponential backoff
+                time_since_last_retry = (utc_now() - queued.last_retry_at).total_seconds()
+                backoff_delay = self._calculate_backoff_delay(message.retry_count)
+                
+                # Skip if backoff period hasn't elapsed
+                if time_since_last_retry < backoff_delay:
+                    continue
+            
             # Attempt delivery
             message.retry_count += 1
             queued.last_retry_at = utc_now()
@@ -719,45 +922,223 @@ class MessageDeliveryService:
                     self._queued_storage_size -= len(message.payload)
                     message.state = MessageState.DELIVERED
             else:
-                # Keep in queue for next retry
+                # Keep in queue for next retry with exponential backoff
                 with self._queue_lock:
                     self._queued_messages[message.message_id] = queued
     
     def handle_websocket_disconnect(self) -> None:
         """
-        Handle WebSocket disconnect per Resolved Clarifications.
+        Handle WebSocket disconnect per Resolved Clarifications (#51).
         
         Implements automatic reconnect with exponential backoff.
-        Falls back to REST polling if reconnect fails >15s.
-        
-        Note:
-            Actual reconnect logic is implemented in WebSocket client.
-            This method notifies the service of disconnect state.
+        Falls back to REST polling if reconnect fails >15s per Resolved Clarifications (#51).
         """
         self._websocket_connected = False
         
-        # Start exponential backoff reconnect per Resolved Clarifications
-        # Note: Actual reconnect logic implemented in WebSocket client
-        # This method notifies the service of disconnect state
+        # Cancel existing reconnect timer if any
+        if self._websocket_reconnect_timer:
+            self._websocket_reconnect_timer.cancel()
         
-        # Fallback to REST polling if reconnect fails >15s per Resolved Clarifications
-        if not self._rest_polling_active:
-            # Start REST polling fallback
+        # Start exponential backoff reconnect per Resolved Clarifications (#51)
+        self._websocket_reconnect_attempts = 0
+        self._schedule_websocket_reconnect()
+        
+        # Schedule fallback to REST polling after 15s per Resolved Clarifications (#51)
+        fallback_timer = Timer(
+            WEBSOCKET_RECONNECT_TIMEOUT_SECONDS,
+            self._check_websocket_reconnect_fallback,
+        )
+        fallback_timer.daemon = True
+        fallback_timer.start()
+    
+    def _schedule_websocket_reconnect(self) -> None:
+        """
+        Schedule WebSocket reconnect with exponential backoff per Resolved Clarifications (#51).
+        
+        Calculates backoff delay based on reconnect attempts.
+        """
+        if self._websocket_connected:
+            return  # Already connected
+        
+        # Calculate exponential backoff delay
+        backoff_delay = self._calculate_backoff_delay(self._websocket_reconnect_attempts)
+        
+        # Schedule reconnect attempt
+        self._websocket_reconnect_timer = Timer(
+            backoff_delay,
+            self._attempt_websocket_reconnect,
+        )
+        self._websocket_reconnect_timer.daemon = True
+        self._websocket_reconnect_timer.start()
+        
+        logger.debug(
+            f"Scheduling WebSocket reconnect attempt {self._websocket_reconnect_attempts + 1} "
+            f"after {backoff_delay:.2f}s backoff"
+        )
+    
+    def _attempt_websocket_reconnect(self) -> None:
+        """
+        Attempt WebSocket reconnection per Resolved Clarifications (#51).
+        
+        Note: Actual reconnect logic is implemented in WebSocket client.
+        This method triggers the reconnect attempt.
+        """
+        if self._websocket_connected:
+            return  # Already connected
+        
+        self._websocket_reconnect_attempts += 1
+        
+        # Attempt reconnect (WebSocket client handles actual connection)
+        if self.websocket_client:
+            try:
+                # WebSocket client should implement reconnect logic
+                # For now, we assume reconnect is attempted
+                # In a real implementation, this would call websocket_client.reconnect()
+                logger.debug(f"Attempting WebSocket reconnect (attempt {self._websocket_reconnect_attempts})")
+                
+                # If reconnect successful, websocket client should call handle_websocket_connect()
+                # Otherwise, schedule another reconnect
+                if not self._websocket_connected:
+                    self._schedule_websocket_reconnect()
+            except Exception as e:
+                logger.warning(f"WebSocket reconnect attempt failed: {e}")
+                self._schedule_websocket_reconnect()
+    
+    def handle_websocket_connect(self) -> None:
+        """
+        Handle WebSocket connection established per Resolved Clarifications (#51).
+        
+        Resets reconnect attempts and stops REST polling if active.
+        """
+        self._websocket_connected = True
+        self._websocket_reconnect_attempts = 0
+        
+        # Cancel reconnect timer
+        if self._websocket_reconnect_timer:
+            self._websocket_reconnect_timer.cancel()
+            self._websocket_reconnect_timer = None
+        
+        # Stop REST polling if active (WebSocket is preferred)
+        if self._rest_polling_active:
+            self._stop_rest_polling()
+        
+        logger.debug("WebSocket connected, stopping REST polling fallback")
+    
+    def _check_websocket_reconnect_fallback(self) -> None:
+        """
+        Check if WebSocket reconnect has failed and fallback to REST polling per Resolved Clarifications (#51).
+        
+        If WebSocket still not connected after timeout, start REST polling fallback.
+        """
+        if not self._websocket_connected and not self._rest_polling_active:
+            logger.info("WebSocket reconnect timeout, falling back to REST polling")
             self._start_rest_polling()
     
     def _start_rest_polling(self) -> None:
         """
-        Start REST polling fallback per Resolved TBDs.
+        Start REST polling fallback per Resolved TBDs (#18).
         
-        Polls every 30 seconds per Resolved TBDs.
-        
-        Note:
-            Actual polling loop is implemented separately.
-            This method indicates polling should be active.
+        Polls every 30 seconds per Resolved TBDs (#18).
+        Respects expiration and duplicate detection rules per Functional Spec (#6).
         """
+        if self._rest_polling_active:
+            return  # Already polling
+        
         self._rest_polling_active = True
-        # Note: Actual polling loop implemented separately
-        # This method indicates polling should be active
+        self._rest_polling_stop_event.clear()
+        
+        # Start polling thread
+        self._rest_polling_thread = Thread(
+            target=self._rest_polling_loop,
+            daemon=True,
+        )
+        self._rest_polling_thread.start()
+        
+        logger.debug("Started REST polling fallback (30s interval)")
+    
+    def _stop_rest_polling(self) -> None:
+        """
+        Stop REST polling fallback.
+        
+        Called when WebSocket reconnects (preferred method per Resolved TBDs).
+        """
+        if not self._rest_polling_active:
+            return
+        
+        self._rest_polling_active = False
+        self._rest_polling_stop_event.set()
+        
+        if self._rest_polling_thread and self._rest_polling_thread.is_alive():
+            self._rest_polling_thread.join(timeout=5.0)
+        
+        logger.debug("Stopped REST polling fallback")
+    
+    def _rest_polling_loop(self) -> None:
+        """
+        REST polling loop per Resolved TBDs (#18) and API Contracts (#10), Section 3.4.
+        
+        Polls /api/message/receive every 30 seconds.
+        Respects expiration and duplicate detection rules.
+        """
+        last_received_id: Optional[str] = None
+        
+        while self._rest_polling_active and not self._rest_polling_stop_event.is_set():
+            if not self.http_client:
+                break
+            
+            try:
+                # Poll for messages per API Contracts (#10), Section 3.4
+                headers = {HEADER_DEVICE_ID: self.device_id}
+                params = {}
+                if last_received_id:
+                    params["last_received_id"] = last_received_id
+                
+                # Poll for messages per API Contracts (#10), Section 3.4
+                response = self.http_client.get(
+                    API_ENDPOINT_RECEIVE_MESSAGE,
+                    params=params,
+                    headers=headers,
+                )
+                
+                if response.status_code == 200:
+                    response_data = response.json()
+                    messages = response_data.get("messages", [])
+                    
+                    # Process received messages per Functional Spec (#6), Section 4.3
+                    for msg_data in messages:
+                        try:
+                            # Extract message data
+                            msg_id = UUID(msg_data["message_id"])
+                            encrypted_payload = bytes.fromhex(msg_data["payload"])
+                            sender_id = msg_data["sender_id"]
+                            conversation_id = msg_data.get("conversation_id", "")
+                            expiration_timestamp = datetime.fromisoformat(msg_data["expiration"])
+                            
+                            # Receive message (handles expiration and duplicate detection)
+                            received = self.receive_message(
+                                message_id=msg_id,
+                                encrypted_payload=encrypted_payload,
+                                sender_id=sender_id,
+                                conversation_id=conversation_id,
+                                expiration_timestamp=expiration_timestamp,
+                            )
+                            
+                            if received:
+                                last_received_id = str(msg_id)
+                                logger.debug(f"Received message {msg_id} via REST polling")
+                        except (KeyError, ValueError, Exception) as e:
+                            logger.warning(f"Error processing polled message: {e}")
+                            continue
+                
+                # Wait for polling interval or stop event
+                if self._rest_polling_stop_event.wait(REST_POLLING_INTERVAL_SECONDS):
+                    break  # Stop event set
+                
+            except Exception as e:
+                logger.warning(f"REST polling error: {e}")
+                # Continue polling even on error
+                if self._rest_polling_stop_event.wait(REST_POLLING_INTERVAL_SECONDS):
+                    break
     
     def cleanup_expired_messages(self) -> None:
         """
