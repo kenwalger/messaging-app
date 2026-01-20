@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Client-facing API boundary and adapter layer
+  - Client-facing API response schemas (DTOs) per API Contracts (#10)
+  - API adapter layer mapping internal models to client DTOs (UX Behavior #12, Section 3.6)
+  - Error code enumeration and mapping (API Contracts #10, Section 6)
+  - API versioning strategy (v1 per API Contracts #10)
+  - State mapping (internal states → client-visible states per UX Behavior #12, Section 4)
+  - Error normalization pipeline (neutral messages per Copy Rules #13, Section 4)
+  - Content-free error responses (no internal details, stack traces, or sensitive info)
+  - Comprehensive unit tests (15 test cases, all passing)
+  - API boundary and adapter layer diagrams (Mermaid)
 - Logging, observability, and audit enforcement
   - Structured logging utilities with JSON format (Logging & Observability #14, Section 2)
   - Content-free logging validation (no message content, keys, or sensitive data per Logging & Observability #14, Section 4)
@@ -81,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Expired message rejection enforcement (Functional Spec #6, Section 4.4)
   - Duplicate message suppression (Message ID + content hash per Resolved Clarifications #35)
 - Comprehensive unit tests
+  - 15 test cases for API adapter layer (all passing)
   - 12 test cases for logging, observability, and audit enforcement (all passing)
   - 18 test cases for device identity and revocation enforcement (all passing)
   - 16 test cases for backend conversation API (all passing)
@@ -96,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - requirements.txt with dependencies
   - Package structure with __init__.py files
 - Documentation
+  - API boundary and adapter layer diagrams (Mermaid)
   - Observability and audit enforcement diagrams (Mermaid)
   - Device identity lifecycle diagrams (Mermaid)
   - Conversation API lifecycle diagrams (Mermaid)
