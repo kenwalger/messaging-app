@@ -92,8 +92,8 @@ AAM protects against:
 - Participant management with group size enforcement (max 50)
 - Conversation closure handling
 - Neutral enterprise mode support (read-only for revoked devices)
-- Comprehensive unit tests (76 tests total, all passing)
-  - 17 tests for device identity and revocation enforcement
+- Comprehensive unit tests (77 tests total, all passing)
+  - 18 tests for device identity and revocation enforcement
   - 16 tests for backend conversation API
   - 12 tests for message delivery reliability hardening
   - 18 tests for conversation management

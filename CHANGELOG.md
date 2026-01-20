@@ -71,7 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Expired message rejection enforcement (Functional Spec #6, Section 4.4)
   - Duplicate message suppression (Message ID + content hash per Resolved Clarifications #35)
 - Comprehensive unit tests
-  - 17 test cases for device identity and revocation enforcement (all passing)
+  - 18 test cases for device identity and revocation enforcement (all passing)
   - 16 test cases for backend conversation API (all passing)
   - 12 test cases for message delivery reliability hardening (all passing)
   - 18 test cases for conversation management (all passing)
@@ -112,6 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Conversation participant addition now returns False (instead of raising ValueError) for closed conversations
 - Timer threads set as daemon threads to allow clean process exit
 - HttpClient Protocol missing get() method definition (added to match REST polling usage)
+- DeviceRegistry missing provision_device() method for Pending → Provisioned transition (added to complete API surface)
 
 ### Technical Improvements
 - Use timezone-aware datetime (utc_now() helper) to resolve deprecation warnings
