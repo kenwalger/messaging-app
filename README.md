@@ -63,9 +63,15 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Logging, observability, and audit enforcement
+**Current Phase:** Client-facing API boundary and adapter layer
 
 **Completed:**
+- Client-facing API boundary and adapter layer
+  - Client-safe DTOs (hide internal implementation details)
+  - State mapping (internal → client-visible states)
+  - Error normalization (neutral messages only)
+  - API versioning (v1)
+  - Content-free error responses
 - Logging, observability, and audit enforcement
   - Structured JSON logging (content-free)
   - Log retention and purge enforcement (90 days)
@@ -98,7 +104,8 @@ AAM protects against:
 - Participant management with group size enforcement (max 50)
 - Conversation closure handling
 - Neutral enterprise mode support (read-only for revoked devices)
-- Comprehensive unit tests (89 tests total, all passing)
+- Comprehensive unit tests (104 tests total, all passing)
+  - 15 tests for API adapter layer
   - 12 tests for logging, observability, and audit enforcement
   - 18 tests for device identity and revocation enforcement
   - 16 tests for backend conversation API

@@ -131,6 +131,27 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Comprehensive unit tests (16 tests, all passing)
 - [x] Conversation API lifecycle diagrams (Mermaid)
 
+## Phase 5.5: API Boundary & Adapter Layer ✅
+
+**Status:** Completed
+
+### Client-Facing API Boundary
+- [x] Client-facing API response schemas (DTOs) per API Contracts (#10)
+- [x] API adapter layer mapping internal models to client DTOs
+- [x] State mapping (internal states → client-visible states per UX Behavior #12, Section 4)
+- [x] Error code enumeration and mapping (API Contracts #10, Section 6)
+- [x] API versioning strategy (v1 per API Contracts #10)
+- [x] Error normalization pipeline (neutral messages per Copy Rules #13, Section 4)
+- [x] Content-free error responses (no internal details, stack traces, or sensitive info)
+- [x] Comprehensive unit tests (15 test cases, all passing)
+- [x] API boundary and adapter layer diagrams (Mermaid)
+
+### Client-Safe DTOs
+- [x] ClientMessageDTO (hides retry_count, internal states, payload)
+- [x] ClientConversationDTO (hides participant IDs, shows count only)
+- [x] ClientErrorResponse (neutral messages, no technical details)
+- [x] ClientSuccessResponse (standardized success format with versioning)
+
 ## Phase 6: UI/UX Implementation
 
 **Status:** Planned
@@ -226,6 +247,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - **Phase 2**: ✅ Completed (Identity & Provisioning - Core Identity Management)
 - **Phase 4**: ✅ Completed (Network & Delivery)
 - **Phase 5**: ✅ Completed (Conversation Management - Backend API)
+- **Phase 5.5**: ✅ Completed (API Boundary & Adapter Layer)
 - **Phase 7**: ✅ Completed (Logging & Observability - Core Services)
 - **Phase 2.5**: Next (Controller API Endpoints for Provisioning/Revocation)
 - **Phase 3, 6, 8-9**: Planned (timeline TBD)
