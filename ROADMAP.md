@@ -111,6 +111,19 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Conversation metadata (Restricted classification per Data Classification #8)
 - [x] Closed conversation handling (messages remain until expiration per Resolved Clarifications)
 
+### Backend Conversation API
+- [x] POST `/api/conversation/create` - Create conversation endpoint (API Contracts #10)
+- [x] POST `/api/conversation/join` - Join conversation endpoint
+- [x] POST `/api/conversation/leave` - Leave conversation endpoint
+- [x] POST `/api/conversation/close` - Close conversation endpoint
+- [x] GET `/api/conversation/info` - Get conversation information endpoint
+- [x] Permission enforcement (only provisioned devices per Identity Provisioning #11)
+- [x] Group size limit enforcement (max 50 participants)
+- [x] Conversation state validation
+- [x] Neutral enterprise mode support (Resolved Clarifications #38)
+- [x] Comprehensive unit tests (16 tests, all passing)
+- [x] Conversation API lifecycle diagrams (Mermaid)
+
 ## Phase 6: UI/UX Implementation
 
 **Status:** Planned
@@ -197,7 +210,9 @@ This roadmap outlines the planned development phases for AAM. All implementation
 ## Timeline
 
 - **Phase 1**: ✅ Completed (including code quality standards)
-- **Phase 1.5**: ✅ Completed (Conversation Management)
+- **Phase 1.5**: ✅ Completed (Conversation Management - Client)
+- **Phase 4**: ✅ Completed (Network & Delivery)
+- **Phase 5**: ✅ Completed (Conversation Management - Backend API)
 - **Phase 2**: Next (Identity & Provisioning)
 - **Phase 3-9**: Planned (timeline TBD)
 

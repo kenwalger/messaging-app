@@ -63,7 +63,7 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Message delivery reliability hardening
+**Current Phase:** Backend conversation API implementation
 
 **Completed:**
 - Message delivery service (client and backend)
@@ -76,11 +76,17 @@ AAM protects against:
 - WebSocket reconnect with exponential backoff
 - REST polling fallback (every 30s when WebSocket unavailable)
 - Conversation management service (client and backend)
+- Backend conversation API service with REST endpoints
+  - Create, join, leave, and close conversation endpoints
+  - Permission enforcement (only provisioned devices)
+  - Group size limit enforcement (max 50 participants)
+  - Neutral enterprise mode support
 - Conversation lifecycle state machine (Uncreated → Active → Closed)
 - Participant management with group size enforcement (max 50)
 - Conversation closure handling
 - Neutral enterprise mode support (read-only for revoked devices)
-- Comprehensive unit tests (43 tests total, all passing)
+- Comprehensive unit tests (59 tests total, all passing)
+  - 16 tests for backend conversation API
   - 12 tests for message delivery reliability hardening
   - 18 tests for conversation management
   - 13 tests for message delivery
@@ -132,6 +138,7 @@ pytest --cov=src tests/
 pytest tests/test_message_delivery.py
 pytest tests/test_message_delivery_hardening.py
 pytest tests/test_conversation_manager.py
+pytest tests/test_conversation_api.py
 
 # Run all tests
 pytest

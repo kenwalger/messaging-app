@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Backend conversation API service
+  - POST `/api/conversation/create` - Create conversation with permission enforcement (Functional Spec #6, Section 4.1)
+  - POST `/api/conversation/join` - Join conversation with group size validation (max 50 per Resolved TBDs)
+  - POST `/api/conversation/leave` - Leave conversation (closes if last participant per State Machines #7, Section 4)
+  - POST `/api/conversation/close` - Close conversation (participants only)
+  - GET `/api/conversation/info` - Get conversation information (supports neutral enterprise mode per Resolved Clarifications #38)
+  - Permission enforcement (only provisioned devices may create/join per Identity Provisioning #11)
+  - Group size limit enforcement (max 50 participants, checked before join)
+  - Conversation state validation (cannot join closed conversations)
+  - Neutral enterprise mode support (revoked devices can view but cannot create/join)
+  - Comprehensive unit tests (16 test cases, all passing)
+  - Conversation API lifecycle diagrams (Mermaid)
 - Core message delivery module implementation
   - Message creation, encryption, and delivery (Functional Spec #6, Sections 4.2-4.5)
   - Message lifecycle state machine (State Machines #7, Section 3)
@@ -48,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Expired message rejection enforcement (Functional Spec #6, Section 4.4)
   - Duplicate message suppression (Message ID + content hash per Resolved Clarifications #35)
 - Comprehensive unit tests
+  - 16 test cases for backend conversation API (all passing)
   - 12 test cases for message delivery reliability hardening (all passing)
   - 18 test cases for conversation management (all passing)
   - 13 test cases for message delivery (all passing)
@@ -60,6 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - requirements.txt with dependencies
   - Package structure with __init__.py files
 - Documentation
+  - Conversation API lifecycle diagrams (Mermaid)
   - Message lifecycle diagrams (Mermaid)
   - Conversation lifecycle diagrams (Mermaid)
   - Message delivery reliability diagrams (Mermaid)
