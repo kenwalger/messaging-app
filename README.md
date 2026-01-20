@@ -63,21 +63,25 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Conversation management module implementation
+**Current Phase:** Message delivery reliability hardening
 
 **Completed:**
 - Message delivery service (client and backend)
 - Message lifecycle state machine
 - Offline queuing and storage management
 - Message expiration enforcement
-- Duplicate detection
-- Retry logic with limits
+- Duplicate detection (Message ID + content hash)
+- Retry logic with exponential backoff (max 5 attempts)
+- ACK handling per message ID with timeout (30s)
+- WebSocket reconnect with exponential backoff
+- REST polling fallback (every 30s when WebSocket unavailable)
 - Conversation management service (client and backend)
 - Conversation lifecycle state machine (Uncreated → Active → Closed)
 - Participant management with group size enforcement (max 50)
 - Conversation closure handling
 - Neutral enterprise mode support (read-only for revoked devices)
-- Comprehensive unit tests (31 tests total, all passing)
+- Comprehensive unit tests (43 tests total, all passing)
+  - 12 tests for message delivery reliability hardening
   - 18 tests for conversation management
   - 13 tests for message delivery
 - Full type hints per PEP 484 (Project Best Practices #20)
@@ -126,6 +130,7 @@ pytest --cov=src tests/
 
 # Run specific test file
 pytest tests/test_message_delivery.py
+pytest tests/test_message_delivery_hardening.py
 pytest tests/test_conversation_manager.py
 
 # Run all tests

@@ -39,7 +39,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Conversation data structures and state enums
   - Constants from resolved TBDs and clarifications
   - UTC time helper function (timezone-aware)
+- Message delivery reliability hardening
+  - ACK handling per message ID with timeout (30s per Resolved Clarifications #51)
+  - Exponential backoff retry policy (base * 2^retry_count, max 60s per Lifecycle Playbooks #15)
+  - WebSocket reconnect with exponential backoff (Resolved Clarifications #51)
+  - REST polling fallback (every 30s when WebSocket unavailable per Resolved TBDs #18)
+  - Enhanced retry logic with exponential backoff for offline queue processing
+  - Expired message rejection enforcement (Functional Spec #6, Section 4.4)
+  - Duplicate message suppression (Message ID + content hash per Resolved Clarifications #35)
 - Comprehensive unit tests
+  - 12 test cases for message delivery reliability hardening (all passing)
   - 18 test cases for conversation management (all passing)
   - 13 test cases for message delivery (all passing)
   - Test coverage for critical paths
@@ -53,6 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation
   - Message lifecycle diagrams (Mermaid)
   - Conversation lifecycle diagrams (Mermaid)
+  - Message delivery reliability diagrams (Mermaid)
+    - Delivery lifecycle with ACK
+    - Retry & failure state transitions
+    - WebSocket reconnect & REST fallback flow
+    - Exponential backoff retry flow
+    - REST polling message processing
+    - ACK timeout handling
   - Client module README
   - Top-level documentation files (README.md, LICENSE.md, CONTRIBUTING.md, CHANGELOG.md, ROADMAP.md)
 
@@ -76,6 +92,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full type safety with Protocol-based interfaces
 - No linting errors
 - Proper thread cleanup in tests
+- Deterministic message delivery with ACK tracking and exponential backoff
+- Robust WebSocket/REST fallback mechanism with automatic reconnection
 
 ## [0.1.0] - 2024-XX-XX
 
