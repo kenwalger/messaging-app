@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- UI domain adapter layer
+  - UI domain models (view models) per UX Behavior (#12)
+  - MessageViewModel with derived UX flags (is_expired, is_failed, is_read_only)
+  - ConversationViewModel with derived UX flags (can_send, is_read_only, send_disabled)
+  - ParticipantViewModel for participant display
+  - DeviceStateViewModel with derived permission flags
+  - UIAdapter mapping client API DTOs to UI domain models
+  - Deterministic derivation of UX flags from API responses
+  - Reverse chronological sorting (newest first per Resolved Clarifications #53)
+  - Message filtering (expired, failed, active conversations)
+  - Neutral enterprise mode support (read-only flags per Resolved Clarifications #38)
+  - Comprehensive unit tests (13 test cases, all passing)
+  - UI domain adapter layer diagrams (Mermaid)
 - Client-facing API boundary and adapter layer
   - Client-facing API response schemas (DTOs) per API Contracts (#10)
   - API adapter layer mapping internal models to client DTOs (UX Behavior #12, Section 3.6)
@@ -91,6 +104,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Expired message rejection enforcement (Functional Spec #6, Section 4.4)
   - Duplicate message suppression (Message ID + content hash per Resolved Clarifications #35)
 - Comprehensive unit tests
+  - 13 test cases for UI domain adapter layer (all passing)
   - 15 test cases for API adapter layer (all passing)
   - 12 test cases for logging, observability, and audit enforcement (all passing)
   - 18 test cases for device identity and revocation enforcement (all passing)
@@ -107,6 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - requirements.txt with dependencies
   - Package structure with __init__.py files
 - Documentation
+  - UI domain adapter layer diagrams (Mermaid)
   - API boundary and adapter layer diagrams (Mermaid)
   - Observability and audit enforcement diagrams (Mermaid)
   - Device identity lifecycle diagrams (Mermaid)

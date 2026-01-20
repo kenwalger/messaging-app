@@ -63,9 +63,16 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Client-facing API boundary and adapter layer
+**Current Phase:** UI domain adapter layer
 
 **Completed:**
+- UI domain adapter layer
+  - UI domain models (view models) for presentation
+  - Derived UX flags (canSend, isReadOnly, isExpired, isFailed)
+  - Reverse chronological sorting (newest first)
+  - Message and conversation filtering
+  - Neutral enterprise mode support
+- Client-facing API boundary and adapter layer
 - Client-facing API boundary and adapter layer
   - Client-safe DTOs (hide internal implementation details)
   - State mapping (internal → client-visible states)
@@ -104,7 +111,8 @@ AAM protects against:
 - Participant management with group size enforcement (max 50)
 - Conversation closure handling
 - Neutral enterprise mode support (read-only for revoked devices)
-- Comprehensive unit tests (104 tests total, all passing)
+- Comprehensive unit tests (117 tests total, all passing)
+  - 13 tests for UI domain adapter layer
   - 15 tests for API adapter layer
   - 12 tests for logging, observability, and audit enforcement
   - 18 tests for device identity and revocation enforcement
