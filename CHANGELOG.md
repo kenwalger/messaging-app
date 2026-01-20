@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reverse chronological sorting (newest first per Resolved Clarifications #53)
   - Message filtering (expired, failed, active conversations)
   - Neutral enterprise mode support (read-only flags per Resolved Clarifications #38)
-  - Comprehensive unit tests (13 test cases, all passing)
+  - Comprehensive unit tests (14 test cases, all passing)
   - UI domain adapter layer diagrams (Mermaid)
 - Client-facing API boundary and adapter layer
   - Client-facing API response schemas (DTOs) per API Contracts (#10)
