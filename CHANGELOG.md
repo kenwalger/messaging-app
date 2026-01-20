@@ -84,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Timer threads now properly cleaned up in test teardown to prevent pytest hanging
 - Conversation participant addition now returns False (instead of raising ValueError) for closed conversations
 - Timer threads set as daemon threads to allow clean process exit
+- HttpClient Protocol missing get() method definition (added to match REST polling usage)
 
 ### Technical Improvements
 - Use timezone-aware datetime (utc_now() helper) to resolve deprecation warnings
