@@ -38,15 +38,22 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Comprehensive unit tests (18 tests, all passing)
 - [x] Conversation lifecycle diagrams (Mermaid)
 
-## Phase 2: Identity & Provisioning (Next)
+## Phase 2: Identity & Provisioning ✅
 
-**Status:** Planned
+**Status:** Completed (Core Identity Management)
 
 ### Identity Management
-- [ ] Device-bound identity implementation (Identity Provisioning #11)
-- [ ] Identity provisioning lifecycle (State Machines #7, Section 2)
-- [ ] Device authentication and session establishment (Functional Spec #6, Section 3.2)
-- [ ] Device revocation and decommissioning (Lifecycle Playbooks #15, Sections 3-4)
+- [x] Device-bound identity implementation (Identity Provisioning #11)
+- [x] Identity provisioning lifecycle (State Machines #7, Section 5)
+- [x] Device identity state model (Pending, Provisioned, Active, Revoked)
+- [x] DeviceRegistry service with state tracking
+- [x] Identity enforcement service (server-side only)
+- [x] Device revocation handling (immediate and irreversible per Identity Provisioning #11, Section 5)
+- [x] Key rotation scheduling (90 days or immediately upon revocation per Resolved TBDs)
+- [x] Revocation impact handling (removes from conversations per State Machines #7, Section 4)
+- [x] Neutral enterprise mode enforcement (revoked devices can read but cannot send/create/join per Resolved Clarifications #38)
+- [x] Comprehensive unit tests (17 test cases, all passing)
+- [x] Device identity lifecycle diagrams (Mermaid)
 
 ### Controller Interface
 - [ ] Controller authentication (token-based API key system per Resolved Clarifications)
@@ -55,8 +62,8 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [ ] Provisioning confirmation endpoint (`/api/device/provision/confirm` per Resolved Clarifications)
 
 ### Security
+- [x] Key rotation schedule and triggers (every 90 days or on revocation per Resolved TBDs)
 - [ ] Cryptographic key generation and storage (platform secure keystores)
-- [ ] Key rotation schedule (every 90 days or on revocation per Resolved TBDs)
 - [ ] Secure storage service abstraction
 
 ## Phase 3: Encryption & Security
@@ -211,9 +218,10 @@ This roadmap outlines the planned development phases for AAM. All implementation
 
 - **Phase 1**: ✅ Completed (including code quality standards)
 - **Phase 1.5**: ✅ Completed (Conversation Management - Client)
+- **Phase 2**: ✅ Completed (Identity & Provisioning - Core Identity Management)
 - **Phase 4**: ✅ Completed (Network & Delivery)
 - **Phase 5**: ✅ Completed (Conversation Management - Backend API)
-- **Phase 2**: Next (Identity & Provisioning)
+- **Phase 2.5**: Next (Controller API Endpoints for Provisioning/Revocation)
 - **Phase 3-9**: Planned (timeline TBD)
 
 ## Dependencies
