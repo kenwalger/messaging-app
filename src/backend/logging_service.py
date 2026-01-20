@@ -16,7 +16,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from threading import Lock
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from src.shared.constants import LOG_RETENTION_DAYS

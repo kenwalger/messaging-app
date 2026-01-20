@@ -15,7 +15,7 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
 from threading import Lock
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.shared.message_types import utc_now
 
@@ -48,7 +48,7 @@ class MetricsService:
         self._metrics_lock = Lock()
         
         # Alert state tracking
-        self._alerts_triggered: List[Dict[str, any]] = []
+        self._alerts_triggered: List[Dict[str, Any]] = []
     
     def record_metric(
         self,
@@ -119,7 +119,7 @@ class MetricsService:
         with self._metrics_lock:
             return dict(self._metrics.get(window_start, {}))
     
-    def check_alert_thresholds(self) -> List[Dict[str, any]]:
+    def check_alert_thresholds(self) -> List[Dict[str, Any]]:
         """
         Check alert thresholds per Resolved TBDs.
         
@@ -133,7 +133,7 @@ class MetricsService:
         with self._metrics_lock:
             failed_deliveries = self._metrics.get(current_window, {}).get("failed_deliveries", 0)
         
-        triggered_alerts: List[Dict[str, any]] = []
+        triggered_alerts: List[Dict[str, Any]] = []
         
         # Check failed deliveries threshold per Resolved TBDs
         if failed_deliveries >= ALERT_THRESHOLD_FAILED_DELIVERIES:
