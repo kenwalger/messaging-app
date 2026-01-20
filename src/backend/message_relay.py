@@ -28,7 +28,7 @@ from src.shared.constants import (
     HEADER_DEVICE_ID,
     MAX_DELIVERY_RETRIES,
 )
-from src.shared.message_types import MessageMetadata
+from src.shared.message_types import MessageMetadata, utc_now
 
 # Configure logging per Logging & Observability (#14)
 # Note: No message content logged per Data Classification (#8)
@@ -100,7 +100,7 @@ class MessageRelayService:
             return False
         
         # Check if message already expired per API Contracts (#10), Section 5
-        if datetime.utcnow() >= expiration_timestamp:
+        if utc_now() >= expiration_timestamp:
             logger.debug(f"Message {message_id} expired, rejecting")
             return False
         
@@ -128,7 +128,7 @@ class MessageRelayService:
             "encrypted_payload": encrypted_payload,
             "expiration_timestamp": expiration_timestamp,
             "conversation_id": conversation_id,
-            "created_at": datetime.utcnow(),
+            "created_at": utc_now(),
         }
         
         self._pending_deliveries[message_id] = delivery_metadata
@@ -226,7 +226,7 @@ class MessageRelayService:
             logger.warning(f"Invalid or revoked device requesting messages: {device_id}")
             return []
         
-        current_time = datetime.utcnow()
+        current_time = utc_now()
         pending_messages = []
         
         # Find messages for this device
@@ -263,7 +263,7 @@ class MessageRelayService:
         Metadata deleted immediately after expiration per Data Classification (#8).
         Backend does not retain messages beyond expiration per Functional Spec (#6), Section 5.1.
         """
-        current_time = datetime.utcnow()
+        current_time = utc_now()
         
         expired_message_ids = [
             msg_id

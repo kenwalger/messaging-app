@@ -10,10 +10,20 @@ References:
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import List, Optional
 from uuid import UUID, uuid4
+
+
+def utc_now() -> datetime:
+    """
+    Get current UTC time.
+    
+    Replaces deprecated datetime.utcnow() with timezone-aware datetime.
+    References: Repo & Coding Standards (#17)
+    """
+    return datetime.now(timezone.utc)
 
 
 # Constants per Resolved Specs & Clarifications
@@ -80,7 +90,7 @@ class Message:
         Uses local device time per Functional Spec (#6), Section 10.
         """
         if current_time is None:
-            current_time = datetime.utcnow()
+            current_time = utc_now()
         return current_time >= self.expiration_timestamp
     
     def calculate_expiration_timestamp(
@@ -114,7 +124,7 @@ class QueuedMessage:
         Retries only within expiration window, max 5 attempts per Resolved TBDs.
         """
         if current_time is None:
-            current_time = datetime.utcnow()
+            current_time = utc_now()
         
         if self.message.is_expired(current_time):
             return False  # Expired messages not retried per Resolved Clarifications

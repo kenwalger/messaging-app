@@ -10,7 +10,7 @@ References:
 """
 
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, Mock, patch
 from uuid import uuid4
 
@@ -23,7 +23,7 @@ from src.shared.constants import (
     MAX_OFFLINE_MESSAGES,
     MAX_OFFLINE_STORAGE_MB,
 )
-from src.shared.message_types import Message, MessageState
+from src.shared.message_types import Message, MessageState, utc_now
 
 
 class TestMessageDeliveryService(unittest.TestCase):
@@ -239,24 +239,26 @@ class TestMessageDeliveryService(unittest.TestCase):
         Eviction applies only to expired messages.
         Oldest expired messages removed first.
         """
-        # Create expired message
-        expired_message = self.service.create_message(
-            plaintext_content=b"Expired message",
-            recipients=["recipient-001"],
-            conversation_id="conv-expired",
-        )
-        expired_message.expiration_timestamp = datetime.utcnow() - timedelta(days=1)
-        
-        # Create unexpired message
+        # Create unexpired message first
         unexpired_message = self.service.create_message(
             plaintext_content=b"Unexpired message",
             recipients=["recipient-001"],
             conversation_id="conv-unexpired",
         )
         
-        # Queue both messages
-        self.service._queue_message_offline(expired_message)
+        # Queue unexpired message
         self.service._queue_message_offline(unexpired_message)
+        
+        # Create message that will be expired
+        expired_message = self.service.create_message(
+            plaintext_content=b"Expired message",
+            recipients=["recipient-001"],
+            conversation_id="conv-expired",
+        )
+        # Queue first (while still unexpired)
+        self.service._queue_message_offline(expired_message)
+        # Then expire it (simulate time passing)
+        expired_message.expiration_timestamp = utc_now() - timedelta(days=1)
         
         # Evict expired messages
         evicted = self.service._evict_expired_messages()
@@ -276,7 +278,7 @@ class TestMessageDeliveryService(unittest.TestCase):
         encrypted_payload = b"encrypted_payload"
         sender_id = "sender-001"
         conversation_id = "conv-001"
-        expiration_timestamp = datetime.utcnow() + timedelta(days=7)
+        expiration_timestamp = utc_now() + timedelta(days=7)
         
         message = self.service.receive_message(
             message_id=message_id,
@@ -308,7 +310,7 @@ class TestMessageDeliveryService(unittest.TestCase):
         encrypted_payload = b"encrypted_payload"
         sender_id = "sender-001"
         conversation_id = "conv-001"
-        expiration_timestamp = datetime.utcnow() + timedelta(days=7)
+        expiration_timestamp = utc_now() + timedelta(days=7)
         
         # Receive message first time
         message1 = self.service.receive_message(
@@ -342,7 +344,7 @@ class TestMessageDeliveryService(unittest.TestCase):
         encrypted_payload = b"encrypted_payload"
         sender_id = "sender-001"
         conversation_id = "conv-001"
-        expiration_timestamp = datetime.utcnow() - timedelta(days=1)  # Expired
+        expiration_timestamp = utc_now() - timedelta(days=1)  # Expired
         
         message = self.service.receive_message(
             message_id=message_id,
@@ -368,7 +370,7 @@ class TestMessageDeliveryService(unittest.TestCase):
         )
         
         # Set expiration to past
-        message.expiration_timestamp = datetime.utcnow() - timedelta(seconds=1)
+        message.expiration_timestamp = utc_now() - timedelta(seconds=1)
         
         # Manually trigger expiration
         self.service._expire_message(message.message_id)
@@ -398,13 +400,12 @@ class TestMessageDeliveryService(unittest.TestCase):
         self.service._queue_message_offline(message)
         
         # Simulate retries up to limit
-        for i in range(MAX_DELIVERY_RETRIES):
-            queued = self.service._queued_messages[message.message_id]
-            queued.message.retry_count = i
-            queued.last_retry_at = datetime.utcnow()
+        queued = self.service._queued_messages[message.message_id]
+        # Set retry_count to MAX_DELIVERY_RETRIES to test the limit
+        queued.message.retry_count = MAX_DELIVERY_RETRIES
+        queued.last_retry_at = utc_now()
         
         # Should not retry beyond limit
-        queued = self.service._queued_messages[message.message_id]
         self.assertFalse(queued.should_retry())
         
         # Process queue should mark as failed

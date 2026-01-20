@@ -45,6 +45,7 @@ from src.shared.message_types import (
     Message,
     MessageState,
     QueuedMessage,
+    utc_now,
 )
 
 # Configure logging per Logging & Observability (#14)
@@ -147,7 +148,7 @@ class MessageDeliveryService:
         encrypted_payload = self.encryption_service.encrypt(plaintext_content)
         
         # Create timestamps per Functional Spec (#6), Section 4.2
-        creation_timestamp = datetime.utcnow()
+        creation_timestamp = utc_now()
         expiration_timestamp = creation_timestamp + timedelta(days=expiration_days)
         
         # Create message in CREATED state per State Machines (#7), Section 3
@@ -314,7 +315,7 @@ class MessageDeliveryService:
             # Queue message
             queued = QueuedMessage(
                 message=message,
-                queued_at=datetime.utcnow(),
+                queued_at=utc_now(),
             )
             self._queued_messages[message.message_id] = queued
             self._queued_storage_size += message_size
@@ -344,7 +345,7 @@ class MessageDeliveryService:
         Returns:
             True if any messages were evicted, False otherwise
         """
-        current_time = datetime.utcnow()
+        current_time = utc_now()
         evicted = False
         
         # Find expired messages (oldest first)
@@ -393,7 +394,7 @@ class MessageDeliveryService:
             Message object if successfully received, None if duplicate or expired
         """
         # Check if expired per Functional Spec (#6), Section 4.4
-        if datetime.utcnow() >= expiration_timestamp:
+        if utc_now() >= expiration_timestamp:
             logger.debug(f"Message {message_id} expired, not processing")
             return None
         
@@ -422,7 +423,7 @@ class MessageDeliveryService:
             recipients=[self.device_id],  # This device is the recipient
             payload=encrypted_payload,  # Store encrypted at rest per Data Classification (#8)
             conversation_id=conversation_id,
-            creation_timestamp=datetime.utcnow(),  # Local timestamp per Functional Spec (#6)
+            creation_timestamp=utc_now(),  # Local timestamp per Functional Spec (#6)
             expiration_timestamp=expiration_timestamp,
             state=MessageState.DELIVERED,
             retry_count=0,
@@ -456,7 +457,7 @@ class MessageDeliveryService:
                 self._expiration_timers[message.message_id].cancel()
             
             # Calculate delay until expiration
-            delay_seconds = (message.expiration_timestamp - datetime.utcnow()).total_seconds()
+            delay_seconds = (message.expiration_timestamp - utc_now()).total_seconds()
             
             if delay_seconds <= 0:
                 # Already expired, delete immediately
@@ -535,14 +536,14 @@ class MessageDeliveryService:
                                 "message_id": str(message.message_id),
                                 "device_id": self.device_id,
                                 "retry_count": message.retry_count,
-                                "timestamp": datetime.utcnow().isoformat(),
+                                "timestamp": utc_now().isoformat(),
                             },
                         )
                 continue
             
             # Attempt delivery
             message.retry_count += 1
-            queued.last_retry_at = datetime.utcnow()
+            queued.last_retry_at = utc_now()
             
             success = False
             if self._websocket_connected and self.websocket_client:
@@ -602,7 +603,7 @@ class MessageDeliveryService:
         
         Expired messages deleted immediately upon reconnection per Resolved Clarifications.
         """
-        current_time = datetime.utcnow()
+        current_time = utc_now()
         
         # Find and expire all expired messages
         expired_ids = [
