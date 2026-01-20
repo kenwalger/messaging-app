@@ -44,3 +44,12 @@ ERROR_MESSAGING_DISABLED = "Messaging Disabled"
 LOG_EVENT_MESSAGE_ATTEMPTED = "message_attempted"
 LOG_EVENT_DELIVERY_FAILED = "delivery_failed"
 LOG_EVENT_POLICY_ENFORCED = "policy_enforced"
+LOG_EVENT_DEVICE_PROVISIONED = "device_provisioned"
+LOG_EVENT_DEVICE_REVOKED = "device_revoked"
+LOG_EVENT_SYSTEM_START = "system_start"
+LOG_EVENT_SYSTEM_STOP = "system_stop"
+
+# Logging and observability constants per Resolved TBDs
+LOG_RETENTION_DAYS = 90  # Operational log retention window
+METRICS_AGGREGATION_WINDOW_HOURS = 1  # Metrics aggregated in 1-hour windows
+ALERT_THRESHOLD_FAILED_DELIVERIES = 5  # Alert if ≥5 failed deliveries in 1-hour window
