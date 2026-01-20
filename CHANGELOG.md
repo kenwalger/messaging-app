@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Duplicate detection (Message ID + content hash per Resolved Clarifications)
   - Retry logic with limits (max 5 attempts per Resolved TBDs)
   - WebSocket and REST delivery mechanisms (Resolved TBDs)
+- Conversation management module implementation
+  - Conversation creation with explicit participant definition (Functional Spec #6, Section 4.1)
+  - Conversation lifecycle state machine (Uncreated → Active → Closed per State Machines #7, Section 4)
+  - Participant addition and removal with group size enforcement (max 50 per Resolved TBDs)
+  - Conversation closure handling (all messages remain until expiration per Resolved Clarifications)
+  - Participant revocation handling (removes from all conversations, closes if all revoked)
+  - Neutral enterprise mode support (read-only for revoked devices per Resolved Clarifications)
+  - Active conversation retrieval sorted by last message timestamp (UX Behavior #12)
+  - Integration with message delivery module (conversation state checks)
+- Backend conversation registry service
+  - Conversation membership tracking (Restricted classification per Data Classification #8)
+  - Participant management and revocation handling
+  - Conversation closure and cleanup
 - Backend message relay service
   - Encrypted message relay (no plaintext storage per Functional Spec #6, Section 5.1)
   - WebSocket and REST delivery support
@@ -23,12 +36,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Metadata handling (Restricted classification per Data Classification #8)
 - Shared types and constants
   - Message data structures and state enums
+  - Conversation data structures and state enums
   - Constants from resolved TBDs and clarifications
   - UTC time helper function (timezone-aware)
 - Comprehensive unit tests
-  - 13 test cases covering message lifecycle
-  - All tests passing
+  - 18 test cases for conversation management (all passing)
+  - 13 test cases for message delivery (all passing)
   - Test coverage for critical paths
+  - Timer cleanup in test teardown to prevent pytest hanging
 - Project infrastructure
   - pytest.ini configuration
   - setup.py for development installation
@@ -37,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Package structure with __init__.py files
 - Documentation
   - Message lifecycle diagrams (Mermaid)
+  - Conversation lifecycle diagrams (Mermaid)
   - Client module README
   - Top-level documentation files (README.md, LICENSE.md, CONTRIBUTING.md, CHANGELOG.md, ROADMAP.md)
 
@@ -48,12 +64,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All public methods, arguments, and return types fully annotated
   - Enhanced docstrings explaining behavior, arguments, return values, and exceptions
 
+### Fixed
+- Timer threads now properly cleaned up in test teardown to prevent pytest hanging
+- Conversation participant addition now returns False (instead of raising ValueError) for closed conversations
+- Timer threads set as daemon threads to allow clean process exit
+
 ### Technical Improvements
 - Use timezone-aware datetime (utc_now() helper) to resolve deprecation warnings
 - All code follows Repo & Coding Standards (#17) and Project Best Practices (#20)
 - Comprehensive inline documentation with spec references
 - Full type safety with Protocol-based interfaces
 - No linting errors
+- Proper thread cleanup in tests
 
 ## [0.1.0] - 2024-XX-XX
 

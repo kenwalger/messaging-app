@@ -607,8 +607,9 @@ class MessageDeliveryService:
                 self._expire_message(message.message_id)
                 return
             
-            # Create timer
+            # Create timer (daemon thread to allow process exit)
             timer = Timer(delay_seconds, self._expire_message, args=(message.message_id,))
+            timer.daemon = True  # Ensure timer doesn't prevent process exit
             timer.start()
             self._expiration_timers[message.message_id] = timer
     

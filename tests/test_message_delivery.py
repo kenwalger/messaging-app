@@ -29,7 +29,7 @@ from src.shared.message_types import Message, MessageState, utc_now
 class TestMessageDeliveryService(unittest.TestCase):
     """Test cases for MessageDeliveryService per Functional Spec (#6) and State Machines (#7)."""
     
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures."""
         self.device_id = "test-device-001"
         self.encryption_service = Mock()
@@ -50,6 +50,14 @@ class TestMessageDeliveryService(unittest.TestCase):
             http_client=self.http_client,
             log_service=self.log_service,
         )
+    
+    def tearDown(self) -> None:
+        """Clean up test fixtures."""
+        # Cancel all expiration timers to prevent pytest from hanging
+        with self.service._timer_lock:
+            for timer in self.service._expiration_timers.values():
+                timer.cancel()
+            self.service._expiration_timers.clear()
     
     def test_create_message_success(self):
         """
