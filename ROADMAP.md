@@ -152,6 +152,26 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] ClientErrorResponse (neutral messages, no technical details)
 - [x] ClientSuccessResponse (standardized success format with versioning)
 
+## Phase 5.6: UI Domain Adapter Layer ✅
+
+**Status:** Completed
+
+### UI Domain Models
+- [x] MessageViewModel with derived UX flags (is_expired, is_failed, is_read_only)
+- [x] ConversationViewModel with derived UX flags (can_send, is_read_only, send_disabled)
+- [x] ParticipantViewModel for participant display
+- [x] DeviceStateViewModel with derived permission flags
+- [x] Stateless view models (deterministically derived from API responses)
+
+### UI Adapter Functions
+- [x] UIAdapter mapping client API DTOs to UI domain models
+- [x] Deterministic derivation of UX flags from API responses
+- [x] Reverse chronological sorting (newest first per Resolved Clarifications #53)
+- [x] Message filtering (expired, failed, active conversations)
+- [x] Neutral enterprise mode support (read-only flags per Resolved Clarifications #38)
+- [x] Comprehensive unit tests (13 test cases, all passing)
+- [x] UI domain adapter layer diagrams (Mermaid)
+
 ## Phase 6: UI/UX Implementation
 
 **Status:** Planned
@@ -248,6 +268,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - **Phase 4**: ✅ Completed (Network & Delivery)
 - **Phase 5**: ✅ Completed (Conversation Management - Backend API)
 - **Phase 5.5**: ✅ Completed (API Boundary & Adapter Layer)
+- **Phase 5.6**: ✅ Completed (UI Domain Adapter Layer)
 - **Phase 7**: ✅ Completed (Logging & Observability - Core Services)
 - **Phase 2.5**: Next (Controller API Endpoints for Provisioning/Revocation)
 - **Phase 3, 6, 8-9**: Planned (timeline TBD)
