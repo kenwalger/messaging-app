@@ -48,7 +48,7 @@ class MetricsService:
         self._metrics_lock = Lock()
         
         # Alert state tracking
-        self._alerts_triggered: List[Dict[str, any]] = []
+        self._alerts_triggered: List[Dict[str, Any]] = []
     
     def record_metric(
         self,
