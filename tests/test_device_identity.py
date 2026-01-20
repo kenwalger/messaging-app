@@ -200,6 +200,25 @@ class TestDeviceRegistry(unittest.TestCase):
         self.assertEqual(device.state, DeviceIdentityState.PENDING)
         self.assertTrue(self.registry.get_device_identity(self.device_id) is not None)
     
+    def test_provision_device(self) -> None:
+        """
+        Test device provisioning per Identity Provisioning (#11), Section 3.
+        
+        Transitions: Pending → Provisioned per State Machines (#7), Section 5.
+        """
+        self.registry.register_device(
+            device_id=self.device_id,
+            public_key=self.public_key,
+        )
+        
+        # Provision device (simulating device receiving provisioning data)
+        success = self.registry.provision_device(self.device_id)
+        self.assertTrue(success)
+        
+        device = self.registry.get_device_identity(self.device_id)
+        self.assertEqual(device.state, DeviceIdentityState.PROVISIONED)
+        self.assertIsNotNone(device.provisioned_at)
+    
     def test_confirm_provisioning(self) -> None:
         """
         Test provisioning confirmation per Identity Provisioning (#11), Section 3.
@@ -211,11 +230,10 @@ class TestDeviceRegistry(unittest.TestCase):
             public_key=self.public_key,
         )
         
-        # First transition to Provisioned (simulating device receiving provisioning data)
-        device = self.registry.get_device_identity(self.device_id)
-        device.transition_to_provisioned()
+        # First provision device (Pending → Provisioned)
+        self.registry.provision_device(self.device_id)
         
-        # Confirm provisioning
+        # Then confirm provisioning (Provisioned → Active)
         success = self.registry.confirm_provisioning(self.device_id)
         self.assertTrue(success)
         
@@ -230,14 +248,13 @@ class TestDeviceRegistry(unittest.TestCase):
         Transitions: Active → Revoked per State Machines (#7), Section 5.
         Revocation is immediate and irreversible.
         """
-        # Register and activate device
+        # Register, provision, and activate device
         self.registry.register_device(
             device_id=self.device_id,
             public_key=self.public_key,
         )
-        device = self.registry.get_device_identity(self.device_id)
-        device.transition_to_provisioned()
-        device.transition_to_active()
+        self.registry.provision_device(self.device_id)
+        self.registry.confirm_provisioning(self.device_id)
         
         # Revoke device
         success = self.registry.revoke_device(self.device_id)
@@ -256,14 +273,13 @@ class TestDeviceRegistry(unittest.TestCase):
         - Cannot create or join conversations
         - May read historical conversations
         """
-        # Register and activate device
+        # Register, provision, and activate device
         self.registry.register_device(
             device_id=self.device_id,
             public_key=self.public_key,
         )
-        device = self.registry.get_device_identity(self.device_id)
-        device.transition_to_provisioned()
-        device.transition_to_active()
+        self.registry.provision_device(self.device_id)
+        self.registry.confirm_provisioning(self.device_id)
         
         # Verify active device permissions
         self.assertTrue(self.registry.can_send_messages(self.device_id))
@@ -286,14 +302,13 @@ class TestDeviceRegistry(unittest.TestCase):
         
         Key rotation required every 90 days or immediately upon revocation.
         """
-        # Register and activate device
+        # Register, provision, and activate device
         self.registry.register_device(
             device_id=self.device_id,
             public_key=self.public_key,
         )
-        device = self.registry.get_device_identity(self.device_id)
-        device.transition_to_provisioned()
-        device.transition_to_active()
+        self.registry.provision_device(self.device_id)
+        self.registry.confirm_provisioning(self.device_id)
         
         # Initially, no devices need rotation
         devices_needing_rotation = self.registry.get_devices_needing_key_rotation()
@@ -330,14 +345,13 @@ class TestIdentityEnforcement(unittest.TestCase):
         
         Active devices can send messages.
         """
-        # Register and activate device
+        # Register, provision, and activate device
         self.registry.register_device(
             device_id=self.device_id,
             public_key=self.public_key,
         )
-        device = self.registry.get_device_identity(self.device_id)
-        device.transition_to_provisioned()
-        device.transition_to_active()
+        self.registry.provision_device(self.device_id)
+        self.registry.confirm_provisioning(self.device_id)
         
         result = self.enforcement.enforce_message_sending(self.device_id)
         self.assertTrue(result["allowed"])
@@ -348,14 +362,13 @@ class TestIdentityEnforcement(unittest.TestCase):
         
         Revoked devices cannot send messages.
         """
-        # Register, activate, then revoke device
+        # Register, provision, activate, then revoke device
         self.registry.register_device(
             device_id=self.device_id,
             public_key=self.public_key,
         )
-        device = self.registry.get_device_identity(self.device_id)
-        device.transition_to_provisioned()
-        device.transition_to_active()
+        self.registry.provision_device(self.device_id)
+        self.registry.confirm_provisioning(self.device_id)
         self.registry.revoke_device(self.device_id)
         
         result = self.enforcement.enforce_message_sending(self.device_id)
@@ -368,14 +381,13 @@ class TestIdentityEnforcement(unittest.TestCase):
         
         Revoked devices cannot create conversations.
         """
-        # Register, activate, then revoke device
+        # Register, provision, activate, then revoke device
         self.registry.register_device(
             device_id=self.device_id,
             public_key=self.public_key,
         )
-        device = self.registry.get_device_identity(self.device_id)
-        device.transition_to_provisioned()
-        device.transition_to_active()
+        self.registry.provision_device(self.device_id)
+        self.registry.confirm_provisioning(self.device_id)
         self.registry.revoke_device(self.device_id)
         
         result = self.enforcement.enforce_conversation_creation(self.device_id)
@@ -388,14 +400,13 @@ class TestIdentityEnforcement(unittest.TestCase):
         
         Revoked devices can read historical conversations (neutral enterprise mode).
         """
-        # Register, activate, then revoke device
+        # Register, provision, activate, then revoke device
         self.registry.register_device(
             device_id=self.device_id,
             public_key=self.public_key,
         )
-        device = self.registry.get_device_identity(self.device_id)
-        device.transition_to_provisioned()
-        device.transition_to_active()
+        self.registry.provision_device(self.device_id)
+        self.registry.confirm_provisioning(self.device_id)
         self.registry.revoke_device(self.device_id)
         
         result = self.enforcement.enforce_conversation_read(self.device_id)

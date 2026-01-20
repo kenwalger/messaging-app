@@ -89,6 +89,36 @@ class DeviceRegistry:
         
         return device
     
+    def provision_device(self, device_id: str) -> bool:
+        """
+        Provision device per Identity Provisioning (#11), Section 3.
+        
+        Transitions: Pending → Provisioned per State Machines (#7), Section 5.
+        Trigger: Device receives provisioning data and stores keys in secure keystore per Lifecycle Playbooks (#15), Section 2.
+        
+        Args:
+            device_id: Device identifier to provision.
+        
+        Returns:
+            True if device provisioned, False if device not found or invalid state.
+        """
+        with self._device_lock:
+            if device_id not in self._devices:
+                logger.warning(f"Device {device_id} not found for provisioning")
+                return False
+            
+            device = self._devices[device_id]
+            
+            try:
+                device.transition_to_provisioned()
+            except ValueError as e:
+                logger.warning(f"Cannot provision device {device_id}: {e}")
+                return False
+        
+        logger.info(f"Device {device_id} provisioned, now in Provisioned state")
+        
+        return True
+    
     def confirm_provisioning(self, device_id: str) -> bool:
         """
         Confirm device provisioning per Identity Provisioning (#11), Section 3.
