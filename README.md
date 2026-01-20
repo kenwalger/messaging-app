@@ -63,9 +63,15 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Device identity and revocation enforcement
+**Current Phase:** Logging, observability, and audit enforcement
 
 **Completed:**
+- Logging, observability, and audit enforcement
+  - Structured JSON logging (content-free)
+  - Log retention and purge enforcement (90 days)
+  - Metrics aggregation (1-hour windows)
+  - Alert threshold logic (≥5 failed deliveries)
+  - Audit event recording (append-only, immutable)
 - Device identity and revocation enforcement
   - Device identity state model (Pending, Provisioned, Active, Revoked)
   - DeviceRegistry service with identity tracking
@@ -92,7 +98,8 @@ AAM protects against:
 - Participant management with group size enforcement (max 50)
 - Conversation closure handling
 - Neutral enterprise mode support (read-only for revoked devices)
-- Comprehensive unit tests (77 tests total, all passing)
+- Comprehensive unit tests (89 tests total, all passing)
+  - 12 tests for logging, observability, and audit enforcement
   - 18 tests for device identity and revocation enforcement
   - 16 tests for backend conversation API
   - 12 tests for message delivery reliability hardening

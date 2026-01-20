@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Logging, observability, and audit enforcement
+  - Structured logging utilities with JSON format (Logging & Observability #14, Section 2)
+  - Content-free logging validation (no message content, keys, or sensitive data per Logging & Observability #14, Section 4)
+  - LoggingService with log retention and purge enforcement (90 days per Resolved TBDs)
+  - Audit event model and recorder (append-only, immutable per Data Classification #8, Section 3)
+  - MetricsService with 1-hour aggregation windows (Resolved TBDs)
+  - Alert threshold logic (≥5 failed deliveries in 1-hour window per Resolved TBDs)
+  - Metrics instrumentation for: active devices, messages queued, failed deliveries, revoked devices
+  - Comprehensive unit tests (12 test cases, all passing)
+  - Observability and audit enforcement diagrams (Mermaid)
 - Device identity and revocation enforcement
   - Device identity state model (Pending, Provisioned, Active, Revoked per State Machines #7, Section 5)
   - DeviceRegistry service with identity state tracking (Identity Provisioning #11)
@@ -71,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Expired message rejection enforcement (Functional Spec #6, Section 4.4)
   - Duplicate message suppression (Message ID + content hash per Resolved Clarifications #35)
 - Comprehensive unit tests
+  - 12 test cases for logging, observability, and audit enforcement (all passing)
   - 18 test cases for device identity and revocation enforcement (all passing)
   - 16 test cases for backend conversation API (all passing)
   - 12 test cases for message delivery reliability hardening (all passing)
@@ -85,6 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - requirements.txt with dependencies
   - Package structure with __init__.py files
 - Documentation
+  - Observability and audit enforcement diagrams (Mermaid)
   - Device identity lifecycle diagrams (Mermaid)
   - Conversation API lifecycle diagrams (Mermaid)
   - Message lifecycle diagrams (Mermaid)
