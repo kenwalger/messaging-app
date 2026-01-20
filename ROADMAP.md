@@ -18,6 +18,21 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Protocol interfaces for abstracted services
 - [x] Project documentation (README, LICENSE, CONTRIBUTING, CHANGELOG, ROADMAP)
 
+## Phase 1.5: Conversation Management ✅
+
+**Status:** Completed
+
+- [x] Conversation creation with explicit participant definition (Functional Spec #6, Section 4.1)
+- [x] Conversation lifecycle state machine (State Machines #7, Section 4)
+- [x] Participant addition and removal with group size enforcement (max 50)
+- [x] Conversation closure handling (messages remain until expiration)
+- [x] Participant revocation handling
+- [x] Neutral enterprise mode support (read-only for revoked devices)
+- [x] Backend conversation registry service
+- [x] Integration with message delivery module
+- [x] Comprehensive unit tests (18 tests, all passing)
+- [x] Conversation lifecycle diagrams (Mermaid)
+
 ## Phase 2: Identity & Provisioning (Next)
 
 **Status:** Planned
@@ -75,20 +90,20 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [ ] Network reconnection handling
 - [ ] Message retry logic integration
 
-## Phase 5: Conversation Management
+## Phase 5: Conversation Management ✅
 
-**Status:** Planned
+**Status:** Completed
 
 ### Conversation Lifecycle
-- [ ] Conversation creation (explicit, max 50 participants per Resolved TBDs)
-- [ ] Conversation state machine (State Machines #7, Section 4)
-- [ ] Participant management
-- [ ] Conversation closure handling
+- [x] Conversation creation (explicit, max 50 participants per Resolved TBDs)
+- [x] Conversation state machine (State Machines #7, Section 4)
+- [x] Participant management
+- [x] Conversation closure handling
 
 ### Conversation Features
-- [ ] Conversation list management
-- [ ] Conversation metadata (Restricted classification per Data Classification #8)
-- [ ] Closed conversation handling (messages remain until expiration per Resolved Clarifications)
+- [x] Conversation list management
+- [x] Conversation metadata (Restricted classification per Data Classification #8)
+- [x] Closed conversation handling (messages remain until expiration per Resolved Clarifications)
 
 ## Phase 6: UI/UX Implementation
 
@@ -176,6 +191,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 ## Timeline
 
 - **Phase 1**: ✅ Completed (including code quality standards)
+- **Phase 1.5**: ✅ Completed (Conversation Management)
 - **Phase 2**: Next (Identity & Provisioning)
 - **Phase 3-9**: Planned (timeline TBD)
 

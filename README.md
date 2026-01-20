@@ -63,7 +63,7 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Core message delivery module implementation
+**Current Phase:** Conversation management module implementation
 
 **Completed:**
 - Message delivery service (client and backend)
@@ -72,7 +72,14 @@ AAM protects against:
 - Message expiration enforcement
 - Duplicate detection
 - Retry logic with limits
-- Comprehensive unit tests (13 tests, all passing)
+- Conversation management service (client and backend)
+- Conversation lifecycle state machine (Uncreated → Active → Closed)
+- Participant management with group size enforcement (max 50)
+- Conversation closure handling
+- Neutral enterprise mode support (read-only for revoked devices)
+- Comprehensive unit tests (31 tests total, all passing)
+  - 18 tests for conversation management
+  - 13 tests for message delivery
 - Full type hints per PEP 484 (Project Best Practices #20)
 - Complete docstrings per PEP 257 (Project Best Practices #20)
 - Protocol interfaces for service abstractions
@@ -119,6 +126,10 @@ pytest --cov=src tests/
 
 # Run specific test file
 pytest tests/test_message_delivery.py
+pytest tests/test_conversation_manager.py
+
+# Run all tests
+pytest
 ```
 
 ## Project Structure
