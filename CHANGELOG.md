@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Device identity and revocation enforcement
+  - Device identity state model (Pending, Provisioned, Active, Revoked per State Machines #7, Section 5)
+  - DeviceRegistry service with identity state tracking (Identity Provisioning #11)
+  - Identity enforcement service with server-side permission checks (Functional Spec #6, Section 3.2)
+  - Revocation handling logic (immediate and irreversible per Identity Provisioning #11, Section 5)
+  - Key rotation trigger handling (every 90 days or immediately upon revocation per Resolved TBDs)
+  - Server-side enforcement for message sending, conversation creation/join (Resolved Clarifications #38)
+  - Neutral enterprise mode support (revoked devices can read but cannot send/create/join)
+  - Revocation impact handling (removes device from all conversations per State Machines #7, Section 4)
+  - Comprehensive unit tests (17 test cases, all passing)
+  - Device identity lifecycle diagrams (Mermaid)
 - Backend conversation API service
   - POST `/api/conversation/create` - Create conversation with permission enforcement (Functional Spec #6, Section 4.1)
   - POST `/api/conversation/join` - Join conversation with group size validation (max 50 per Resolved TBDs)
@@ -60,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Expired message rejection enforcement (Functional Spec #6, Section 4.4)
   - Duplicate message suppression (Message ID + content hash per Resolved Clarifications #35)
 - Comprehensive unit tests
+  - 17 test cases for device identity and revocation enforcement (all passing)
   - 16 test cases for backend conversation API (all passing)
   - 12 test cases for message delivery reliability hardening (all passing)
   - 18 test cases for conversation management (all passing)
@@ -73,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - requirements.txt with dependencies
   - Package structure with __init__.py files
 - Documentation
+  - Device identity lifecycle diagrams (Mermaid)
   - Conversation API lifecycle diagrams (Mermaid)
   - Message lifecycle diagrams (Mermaid)
   - Conversation lifecycle diagrams (Mermaid)

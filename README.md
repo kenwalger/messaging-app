@@ -63,9 +63,16 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Backend conversation API implementation
+**Current Phase:** Device identity and revocation enforcement
 
 **Completed:**
+- Device identity and revocation enforcement
+  - Device identity state model (Pending, Provisioned, Active, Revoked)
+  - DeviceRegistry service with identity tracking
+  - Identity enforcement service (server-side only)
+  - Revocation handling (immediate and irreversible)
+  - Key rotation scheduling (90 days or on revocation)
+  - Neutral enterprise mode support
 - Message delivery service (client and backend)
 - Message lifecycle state machine
 - Offline queuing and storage management
@@ -85,7 +92,8 @@ AAM protects against:
 - Participant management with group size enforcement (max 50)
 - Conversation closure handling
 - Neutral enterprise mode support (read-only for revoked devices)
-- Comprehensive unit tests (59 tests total, all passing)
+- Comprehensive unit tests (76 tests total, all passing)
+  - 17 tests for device identity and revocation enforcement
   - 16 tests for backend conversation API
   - 12 tests for message delivery reliability hardening
   - 18 tests for conversation management
@@ -95,7 +103,7 @@ AAM protects against:
 - Protocol interfaces for service abstractions
 
 **In Progress:**
-- Identity provisioning and lifecycle management
+- Controller API endpoints for device provisioning/revocation
 - Encryption service integration
 - WebSocket and REST client implementations
 - UI/UX implementation
