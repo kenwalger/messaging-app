@@ -84,6 +84,8 @@ No assumptions outside frozen UX, State Machines, or Data Classification rules
 
 Cursor outputs must be reviewed by a human before merge
 
+All functions and classes must include Python docstrings per PEP 257 and type hints per PEP 484. Every public method, argument, and return type should be fully annotated. Include docstrings explaining behavior, arguments, return values, and exceptions.
+
 7. Testing & Coverage
 
 Unit tests for all critical functionality

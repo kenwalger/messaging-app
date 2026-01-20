@@ -72,8 +72,14 @@ class Message:
     state: MessageState  # Current state per State Machines (#7)
     retry_count: int = 0  # Retry attempts (max 5 per Resolved TBDs)
     
-    def __post_init__(self):
-        """Validate message constraints per Functional Spec (#6) and Resolved TBDs."""
+    def __post_init__(self) -> None:
+        """
+        Validate message constraints per Functional Spec (#6) and Resolved TBDs.
+        
+        Raises:
+            ValueError: If recipients exceed max group size, payload exceeds max size,
+                or retry count exceeds maximum allowed.
+        """
         if len(self.recipients) > MAX_GROUP_SIZE:
             raise ValueError(f"Recipients exceed max group size of {MAX_GROUP_SIZE}")
         
@@ -88,6 +94,12 @@ class Message:
         Check if message has expired per Functional Spec (#6), Section 4.4.
         
         Uses local device time per Functional Spec (#6), Section 10.
+        
+        Args:
+            current_time: Optional datetime to check against. If None, uses current UTC time.
+        
+        Returns:
+            True if message has expired, False otherwise.
         """
         if current_time is None:
             current_time = utc_now()
@@ -100,7 +112,11 @@ class Message:
         """
         Calculate expiration timestamp per Resolved TBDs.
         
-        Default: 7 days from creation.
+        Args:
+            expiration_days: Number of days until expiration. Defaults to 7 days.
+        
+        Returns:
+            Datetime representing the expiration timestamp (creation + expiration_days).
         """
         return self.creation_timestamp + timedelta(days=expiration_days)
 
@@ -122,6 +138,13 @@ class QueuedMessage:
         Determine if message should be retried per Lifecycle Playbooks (#15).
         
         Retries only within expiration window, max 5 attempts per Resolved TBDs.
+        
+        Args:
+            current_time: Optional datetime to check expiration against. If None, uses current UTC time.
+        
+        Returns:
+            True if message should be retried (not expired and retry count < max),
+            False otherwise.
         """
         if current_time is None:
             current_time = utc_now()

@@ -19,7 +19,7 @@ This module handles:
 import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Protocol
 from uuid import UUID
 
 from src.shared.constants import (
@@ -35,6 +35,66 @@ from src.shared.message_types import MessageMetadata, utc_now
 logger = logging.getLogger(__name__)
 
 
+# Protocol definitions for abstracted services per PEP 484
+class DeviceRegistry(Protocol):
+    """Protocol for device registry interface."""
+    
+    def is_device_active(self, device_id: str) -> bool:
+        """
+        Check if device is active (provisioned and not revoked).
+        
+        Args:
+            device_id: Device identifier to check.
+        
+        Returns:
+            True if device is active, False if revoked or invalid.
+        """
+        ...
+
+
+class WebSocketManager(Protocol):
+    """Protocol for WebSocket connection manager interface."""
+    
+    def is_connected(self, device_id: str) -> bool:
+        """
+        Check if device has active WebSocket connection.
+        
+        Args:
+            device_id: Device identifier to check.
+        
+        Returns:
+            True if device has active WebSocket connection, False otherwise.
+        """
+        ...
+    
+    def send_to_device(self, device_id: str, message: str) -> bool:
+        """
+        Send message to device via WebSocket.
+        
+        Args:
+            device_id: Target device identifier.
+            message: JSON-encoded message string.
+        
+        Returns:
+            True if message sent successfully, False otherwise.
+        """
+        ...
+
+
+class LogService(Protocol):
+    """Protocol for logging service interface."""
+    
+    def log_event(self, event_type: str, event_data: Dict[str, Any]) -> None:
+        """
+        Log operational event.
+        
+        Args:
+            event_type: Type of event (per Logging & Observability #14).
+            event_data: Event data dictionary (content-free per Data Classification #8).
+        """
+        ...
+
+
 class MessageRelayService:
     """
     Backend message relay service per Functional Spec (#6), Section 5.1.
@@ -47,17 +107,18 @@ class MessageRelayService:
     
     def __init__(
         self,
-        device_registry,  # Device identity registry
-        websocket_manager=None,  # WebSocket connection manager
-        log_service=None,  # Logging service per Logging & Observability (#14)
-    ):
+        device_registry: DeviceRegistry,
+        websocket_manager: Optional[WebSocketManager] = None,
+        log_service: Optional[LogService] = None,
+    ) -> None:
         """
         Initialize message relay service.
         
         Args:
-            device_registry: Registry for validating device identities
-            websocket_manager: WebSocket connection manager for real-time delivery
-            log_service: Logging service for operational events
+            device_registry: Registry for validating device identities.
+            websocket_manager: Optional WebSocket connection manager for real-time delivery.
+            log_service: Optional logging service for operational events per
+                Logging & Observability (#14).
         """
         self.device_registry = device_registry
         self.websocket_manager = websocket_manager
@@ -66,7 +127,7 @@ class MessageRelayService:
         # Temporary message storage for delivery per Functional Spec (#6), Section 5.1
         # Classification: Restricted (metadata only) per Data Classification (#8)
         # Delete immediately after delivery per Data Classification (#8), Section 4
-        self._pending_deliveries: Dict[UUID, Dict] = {}  # message_id -> delivery metadata
+        self._pending_deliveries: Dict[UUID, Dict[str, Any]] = {}  # message_id -> delivery metadata
     
     def relay_message(
         self,
@@ -151,7 +212,7 @@ class MessageRelayService:
     def _deliver_to_recipient(
         self,
         recipient_id: str,
-        delivery_metadata: Dict,
+        delivery_metadata: Dict[str, Any],
     ) -> bool:
         """
         Deliver message to specific recipient per API Contracts (#10).
@@ -179,12 +240,19 @@ class MessageRelayService:
     def _deliver_via_websocket(
         self,
         recipient_id: str,
-        delivery_metadata: Dict,
+        delivery_metadata: Dict[str, Any],
     ) -> bool:
         """
         Deliver message via WebSocket per Resolved Clarifications.
         
         Message format: JSON {id, conversation_id, payload, timestamp}
+        
+        Args:
+            recipient_id: Target recipient device identifier.
+            delivery_metadata: Message delivery metadata dictionary.
+        
+        Returns:
+            True if message sent successfully, False otherwise.
         """
         if not self.websocket_manager:
             return False
@@ -206,7 +274,7 @@ class MessageRelayService:
         self,
         device_id: str,
         last_received_id: Optional[UUID] = None,
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         Get pending messages for device via REST polling per API Contracts (#10), Section 3.4.
         
@@ -219,7 +287,12 @@ class MessageRelayService:
             last_received_id: Last received message ID (for pagination)
         
         Returns:
-            List of message dictionaries with encrypted payloads
+            List of message dictionaries with encrypted payloads. Each dictionary contains:
+            - message_id: Message UUID as string
+            - payload: Hex-encoded encrypted payload
+            - sender_id: Sender device identifier
+            - expiration: Expiration timestamp as ISO string
+            - conversation_id: Conversation identifier
         """
         # Validate device identity per API Contracts (#10), Section 5
         if not self.device_registry.is_device_active(device_id):
@@ -256,12 +329,15 @@ class MessageRelayService:
         
         return pending_messages
     
-    def cleanup_expired_messages(self):
+    def cleanup_expired_messages(self) -> None:
         """
         Cleanup expired messages per Data Classification (#8), Section 4.
         
         Metadata deleted immediately after expiration per Data Classification (#8).
         Backend does not retain messages beyond expiration per Functional Spec (#6), Section 5.1.
+        
+        Note:
+            Removes all expired messages from pending deliveries.
         """
         current_time = utc_now()
         

@@ -24,7 +24,7 @@ import time
 from datetime import datetime, timedelta
 from queue import Queue
 from threading import Lock, Timer
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Protocol, Set
 from uuid import UUID, uuid4
 
 from src.shared.constants import (
@@ -53,6 +53,111 @@ from src.shared.message_types import (
 logger = logging.getLogger(__name__)
 
 
+# Protocol definitions for abstracted services per PEP 484
+class EncryptionService(Protocol):
+    """Protocol for encryption service interface."""
+    
+    def encrypt(self, plaintext: bytes) -> bytes:
+        """
+        Encrypt plaintext message content.
+        
+        Args:
+            plaintext: Plaintext message content to encrypt.
+        
+        Returns:
+            Encrypted message payload as bytes.
+        """
+        ...
+    
+    def decrypt(self, encrypted_payload: bytes) -> bytes:
+        """
+        Decrypt encrypted message payload.
+        
+        Args:
+            encrypted_payload: Encrypted message payload to decrypt.
+        
+        Returns:
+            Decrypted plaintext message content as bytes.
+        
+        Raises:
+            Exception: If decryption fails.
+        """
+        ...
+
+
+class StorageService(Protocol):
+    """Protocol for secure storage service interface."""
+    
+    def store_message(self, message_id: UUID, encrypted_payload: bytes) -> None:
+        """
+        Store encrypted message at rest.
+        
+        Args:
+            message_id: Message UUID identifier.
+            encrypted_payload: Encrypted message payload to store.
+        """
+        ...
+    
+    def delete_message(self, message_id: UUID) -> None:
+        """
+        Delete message from storage.
+        
+        Args:
+            message_id: Message UUID identifier to delete.
+        """
+        ...
+
+
+class WebSocketClient(Protocol):
+    """Protocol for WebSocket client interface."""
+    
+    def send(self, message: str) -> None:
+        """
+        Send message via WebSocket.
+        
+        Args:
+            message: JSON-encoded message string to send.
+        """
+        ...
+
+
+class HttpClient(Protocol):
+    """Protocol for HTTP client interface."""
+    
+    def post(
+        self,
+        url: str,
+        json: Dict[str, Any],
+        headers: Dict[str, str],
+    ) -> Any:
+        """
+        Send POST request via HTTP.
+        
+        Args:
+            url: API endpoint URL.
+            json: Request body as dictionary.
+            headers: HTTP headers as dictionary.
+        
+        Returns:
+            Response object with status_code and json() method.
+        """
+        ...
+
+
+class LogService(Protocol):
+    """Protocol for logging service interface."""
+    
+    def log_event(self, event_type: str, event_data: Dict[str, Any]) -> None:
+        """
+        Log operational event.
+        
+        Args:
+            event_type: Type of event (per Logging & Observability #14).
+            event_data: Event data dictionary (content-free per Data Classification #8).
+        """
+        ...
+
+
 class MessageDeliveryService:
     """
     Message delivery service per Functional Spec (#6) and State Machines (#7).
@@ -63,22 +168,23 @@ class MessageDeliveryService:
     def __init__(
         self,
         device_id: str,
-        encryption_service,  # Abstracted encryption service (not implemented here)
-        storage_service,  # Abstracted secure storage service
-        websocket_client=None,  # Optional WebSocket client
-        http_client=None,  # HTTP client for REST fallback
-        log_service=None,  # Logging service per Logging & Observability (#14)
-    ):
+        encryption_service: EncryptionService,
+        storage_service: StorageService,
+        websocket_client: Optional[WebSocketClient] = None,
+        http_client: Optional[HttpClient] = None,
+        log_service: Optional[LogService] = None,
+    ) -> None:
         """
         Initialize message delivery service.
         
         Args:
-            device_id: Device-bound identity per Identity Provisioning (#11)
-            encryption_service: Service for encrypting/decrypting messages
-            storage_service: Secure storage for encrypted messages at rest
-            websocket_client: WebSocket client (preferred) per Resolved TBDs
-            http_client: HTTP client for REST fallback per Resolved TBDs
-            log_service: Logging service for operational events
+            device_id: Device-bound identity per Identity Provisioning (#11).
+            encryption_service: Service for encrypting/decrypting messages.
+            storage_service: Secure storage for encrypted messages at rest.
+            websocket_client: Optional WebSocket client (preferred) per Resolved TBDs.
+            http_client: Optional HTTP client for REST fallback per Resolved TBDs.
+            log_service: Optional logging service for operational events per
+                Logging & Observability (#14).
         """
         self.device_id = device_id
         self.encryption_service = encryption_service
@@ -221,6 +327,15 @@ class MessageDeliveryService:
         
         Message format: JSON {id, conversation_id, payload, timestamp}
         Authentication: X-Device-ID header + ephemeral session token
+        
+        Args:
+            message: Message to send via WebSocket.
+        
+        Returns:
+            True if message sent successfully, False otherwise.
+        
+        Raises:
+            Exception: If WebSocket send fails (caught and logged by caller).
         """
         if not self.websocket_client:
             return False
@@ -249,6 +364,15 @@ class MessageDeliveryService:
         
         Endpoint: POST /api/message/send
         Headers: X-Device-ID
+        
+        Args:
+            message: Message to send via REST API.
+        
+        Returns:
+            True if message sent successfully (HTTP 200), False otherwise.
+        
+        Raises:
+            Exception: If REST request fails (caught and logged by caller).
         """
         if not self.http_client:
             return False
@@ -282,13 +406,20 @@ class MessageDeliveryService:
         
         return False
     
-    def _queue_message_offline(self, message: Message):
+    def _queue_message_offline(self, message: Message) -> None:
         """
         Queue message for offline delivery per Functional Spec (#6), Section 10.
         
         Enforces storage limits per Resolved TBDs:
         - Max 500 messages or 50MB
         - Eviction only for expired messages per Resolved Clarifications
+        
+        Args:
+            message: Message to queue for offline delivery.
+        
+        Note:
+            Message state may be set to FAILED if queue is full and no expired
+            messages can be evicted.
         """
         with self._queue_lock:
             # Check if message already expired per Resolved Clarifications
@@ -320,12 +451,15 @@ class MessageDeliveryService:
             self._queued_messages[message.message_id] = queued
             self._queued_storage_size += message_size
     
-    def _enforce_offline_storage_limits(self):
+    def _enforce_offline_storage_limits(self) -> None:
         """
         Enforce offline storage limits per Resolved TBDs and Clarifications.
         
         Eviction applies only to expired messages per Resolved Clarifications.
         Oldest expired messages removed first.
+        
+        Note:
+            Logs warnings if limits are still exceeded after eviction.
         """
         # Remove expired messages from queue per Resolved Clarifications
         self._evict_expired_messages()
@@ -391,7 +525,10 @@ class MessageDeliveryService:
             expiration_timestamp: Message expiration time
         
         Returns:
-            Message object if successfully received, None if duplicate or expired
+            Message object if successfully received, None if duplicate or expired.
+        
+        Raises:
+            Exception: If decryption fails (caught and logged, returns None).
         """
         # Check if expired per Functional Spec (#6), Section 4.4
         if utc_now() >= expiration_timestamp:
@@ -445,11 +582,17 @@ class MessageDeliveryService:
         
         return message
     
-    def _start_expiration_timer(self, message: Message):
+    def _start_expiration_timer(self, message: Message) -> None:
         """
         Start expiration timer per State Machines (#7), Section 7.
         
         Timer enforcement is device-local per State Machines (#7), Section 7.
+        
+        Args:
+            message: Message to start expiration timer for.
+        
+        Note:
+            If message is already expired, it will be deleted immediately.
         """
         with self._timer_lock:
             # Cancel existing timer if any
@@ -469,7 +612,7 @@ class MessageDeliveryService:
             timer.start()
             self._expiration_timers[message.message_id] = timer
     
-    def _expire_message(self, message_id: UUID):
+    def _expire_message(self, message_id: UUID) -> None:
         """
         Expire message per Functional Spec (#6), Section 4.4 and State Machines (#7), Section 3.
         
@@ -479,6 +622,12 @@ class MessageDeliveryService:
         - Mark as EXPIRED state
         
         Expired messages are irrecoverable per Functional Spec (#6), Section 4.4.
+        
+        Args:
+            message_id: UUID of message to expire.
+        
+        Note:
+            If message is not found, method returns silently.
         """
         with self._timer_lock:
             # Remove timer
@@ -507,12 +656,16 @@ class MessageDeliveryService:
         
         logger.debug(f"Message {message_id} expired and deleted")
     
-    def process_offline_queue(self):
+    def process_offline_queue(self) -> None:
         """
         Process offline message queue per Lifecycle Playbooks (#15), Section 5.
         
         Attempts to deliver queued messages when network becomes available.
         Removes expired messages immediately per Resolved Clarifications.
+        
+        Note:
+            Messages that exceed retry limits are marked as FAILED.
+            Successfully delivered messages are removed from queue.
         """
         with self._queue_lock:
             # Remove expired messages first per Resolved Clarifications
@@ -569,12 +722,16 @@ class MessageDeliveryService:
                 with self._queue_lock:
                     self._queued_messages[message.message_id] = queued
     
-    def handle_websocket_disconnect(self):
+    def handle_websocket_disconnect(self) -> None:
         """
         Handle WebSocket disconnect per Resolved Clarifications.
         
         Implements automatic reconnect with exponential backoff.
         Falls back to REST polling if reconnect fails >15s.
+        
+        Note:
+            Actual reconnect logic is implemented in WebSocket client.
+            This method notifies the service of disconnect state.
         """
         self._websocket_connected = False
         
@@ -587,21 +744,28 @@ class MessageDeliveryService:
             # Start REST polling fallback
             self._start_rest_polling()
     
-    def _start_rest_polling(self):
+    def _start_rest_polling(self) -> None:
         """
         Start REST polling fallback per Resolved TBDs.
         
         Polls every 30 seconds per Resolved TBDs.
+        
+        Note:
+            Actual polling loop is implemented separately.
+            This method indicates polling should be active.
         """
         self._rest_polling_active = True
         # Note: Actual polling loop implemented separately
         # This method indicates polling should be active
     
-    def cleanup_expired_messages(self):
+    def cleanup_expired_messages(self) -> None:
         """
         Cleanup expired messages on app start/reconnection per Data Classification (#8), Section 6.
         
         Expired messages deleted immediately upon reconnection per Resolved Clarifications.
+        
+        Note:
+            Cleans up both active messages and offline queue.
         """
         current_time = utc_now()
         
