@@ -147,6 +147,27 @@ class HttpClient(Protocol):
             Response object with status_code and json() method.
         """
         ...
+    
+    def get(
+        self,
+        url: str,
+        params: Optional[Dict[str, str]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Any:
+        """
+        Send GET request via HTTP per API Contracts (#10), Section 3.4.
+        
+        Used for REST polling fallback per Resolved TBDs (#18).
+        
+        Args:
+            url: API endpoint URL.
+            params: Optional query parameters as dictionary.
+            headers: Optional HTTP headers as dictionary.
+        
+        Returns:
+            Response object with status_code and json() method.
+        """
+        ...
 
 
 class LogService(Protocol):
