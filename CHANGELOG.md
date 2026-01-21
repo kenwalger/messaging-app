@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - UX guardrails: Send button disabled when connection is "connecting" or "disconnected", prevents duplicate sends via rapid clicking
   - Connection status tracking: MessageHandlerService exposes connection status changes via callback for UI indicators
   - Reactive state updates: Message state transitions (PENDING → DELIVERED) are visible immediately without refresh
+  - Code quality: Fixed duplicate sender_id assignment in messageStore.ts by explicitly excluding preserved fields from message spread
 
 ### Fixed
 - Minimal backend HTTP & WebSocket server for local development
