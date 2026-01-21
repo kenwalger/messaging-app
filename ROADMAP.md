@@ -196,6 +196,35 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] No sound, no animation, no urgency cues per UX Behavior (#12), Section 2
 - [x] Neutral color scheme (no red/green/security color metaphors per UX Behavior #12, Section 5)
 
+## Phase 5.8: Interactive Messaging (Send Path Only) ✅
+
+**Status:** Completed
+
+### Message Composition and Sending
+- [x] MessageComposer component for message composition
+- [x] SendButton component with disabled states
+- [x] MessageApiService interface for client-side message sending
+- [x] Optimistic updates (message enters PENDING state immediately per deterministic rules)
+- [x] Delivery state transitions (PENDING → DELIVERED, PENDING → FAILED)
+- [x] Visual indicators for pending (queued), delivered, and failed messages
+- [x] State handling for pending messages and delivery updates
+- [x] API integration using existing adapters
+- [x] Comprehensive unit tests for send path components
+
+### Send Disabled Conditions
+- [x] Sending disabled when neutral enterprise mode is active
+- [x] Sending disabled when device is revoked
+- [x] Sending disabled when conversation is closed
+- [x] Visual feedback for disabled states
+
+### Constraints Enforced
+- [x] No attachments
+- [x] No message editing
+- [x] No retry UI
+- [x] No notifications
+- [x] No animations beyond basic transitions
+- [x] No content logged or leaked
+
 ## Phase 6: UI/UX Implementation
 
 **Status:** Planned
@@ -294,6 +323,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - **Phase 5.5**: ✅ Completed (API Boundary & Adapter Layer)
 - **Phase 5.6**: ✅ Completed (UI Domain Adapter Layer)
 - **Phase 5.7**: ✅ Completed (Read-Only UI Shell)
+- **Phase 5.8**: ✅ Completed (Interactive Messaging - Send Path Only)
 - **Phase 7**: ✅ Completed (Logging & Observability - Core Services)
 - **Phase 2.5**: Next (Controller API Endpoints for Provisioning/Revocation)
 - **Phase 3, 6, 8-9**: Planned (timeline TBD)

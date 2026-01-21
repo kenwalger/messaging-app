@@ -63,9 +63,15 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Read-only UI shell
+**Current Phase:** Interactive messaging (send path only)
 
 **Completed:**
+- Interactive messaging (send path only)
+  - Message composition and sending
+  - Optimistic updates and delivery state transitions
+  - Visual indicators for pending/delivered/failed states
+  - Disabled send conditions (neutral enterprise mode, revoked device, closed conversation)
+- Read-only UI shell (React + TypeScript + Tailwind CSS)
 - Read-only UI shell (React + TypeScript + Tailwind CSS)
   - React components for read-only display
   - Tailwind CSS styling (neutral, enterprise-safe)

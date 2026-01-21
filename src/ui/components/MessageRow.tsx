@@ -50,7 +50,7 @@ export const MessageRow: React.FC<MessageRowProps> = ({
     });
   };
 
-  // Visual distinction per UX Behavior (#12), Section 3.4 and 3.6
+  // Visual distinction per UX Behavior (#12), Section 3.3, 3.4, and 3.6
   // Neutral color scheme (no red/green/security color metaphors)
   const getMessageStyles = () => {
     if (message.is_expired) {
@@ -61,6 +61,11 @@ export const MessageRow: React.FC<MessageRowProps> = ({
     if (message.is_failed) {
       // Failed messages are explicitly distinguishable per UX Behavior (#12), Section 3.6
       return "text-gray-700 border-l-4 border-gray-400";
+    }
+    if (message.state === "sent" || message.display_state === "queued") {
+      // Pending messages (queued) per UX Behavior (#12), Section 3.3
+      // UI shows "Queued" until backend acknowledges delivery
+      return "text-gray-600 opacity-75";
     }
     // Delivered messages (normal display)
     return "text-gray-900";
@@ -82,6 +87,11 @@ export const MessageRow: React.FC<MessageRowProps> = ({
             {message.is_failed && (
               <span className="text-xs text-gray-500">
                 (Failed)
+              </span>
+            )}
+            {(message.state === "sent" || message.display_state === "queued") && (
+              <span className="text-xs text-gray-500">
+                (Queued)
               </span>
             )}
           </div>
