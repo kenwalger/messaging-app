@@ -11,13 +11,15 @@
  * Handles optimistic updates and delivery state transitions.
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { ConversationList } from "./components/ConversationList";
 import { MessageList } from "./components/MessageList";
 import { MessageComposer } from "./components/MessageComposer";
 import { StatusIndicator } from "./components/StatusIndicator";
 import { ConversationViewModel, DeviceStateViewModel, MessageViewModel } from "./types";
 import { MessageApiService } from "./services/messageApi";
+import { MessageHandlerService } from "./services/messageHandler";
+import { MessageTransport } from "./services/messageTransport";
 
 export interface AppProps {
   /**
@@ -43,6 +45,12 @@ export interface AppProps {
   messageApi: MessageApiService;
   
   /**
+   * Message transport for receiving incoming messages.
+   * WebSocket (preferred) or REST polling (fallback).
+   */
+  messageTransport: MessageTransport;
+  
+  /**
    * Callback when messages are updated (for parent state management).
    */
   onMessagesUpdate?: (conversationId: string, messages: MessageViewModel[]) => void;
@@ -61,6 +69,7 @@ export const App: React.FC<AppProps> = ({
   conversations,
   messagesByConversation: initialMessagesByConversation,
   messageApi,
+  messageTransport,
   onMessagesUpdate,
 }) => {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
@@ -71,8 +80,79 @@ export const App: React.FC<AppProps> = ({
     Record<string, MessageViewModel[]>
   >(initialMessagesByConversation);
 
+  // Message handler service for incoming messages
+  const messageHandlerRef = useRef<MessageHandlerService | null>(null);
+
+  /**
+   * Initialize message handler service for incoming messages.
+   * 
+   * Sets up transport connection and message store integration.
+   * Handles deduplication, ordering, and state reconciliation automatically.
+   */
+  useEffect(() => {
+    // Create message handler service
+    const messageHandler = new MessageHandlerService(messageTransport, deviceState.device_id);
+
+    // Set callback for message updates
+    messageHandler.setOnMessagesUpdate((conversationId, messages) => {
+      // Update local state to trigger re-render
+      setMessagesByConversation((prev) => {
+        const next = { ...prev, [conversationId]: messages };
+        
+        // Notify parent of update
+        if (onMessagesUpdate) {
+          onMessagesUpdate(conversationId, messages);
+        }
+        
+        return next;
+      });
+    });
+
+    // Initialize store with existing messages
+    // Use initialMessagesByConversation from props (captured in closure)
+    const initialMessages = initialMessagesByConversation;
+    for (const [conversationId, messages] of Object.entries(initialMessages)) {
+      for (const message of messages) {
+        messageHandler.addMessage(message);
+      }
+    }
+
+    // Start receiving messages
+    messageHandler.start().catch(() => {
+      // Connection errors handled silently - transport will retry
+    });
+
+    messageHandlerRef.current = messageHandler;
+
+    // Cleanup on unmount
+    return () => {
+      messageHandler.stop().catch(() => {
+        // Disconnect errors handled silently
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messageTransport, deviceState.device_id]); // initialMessagesByConversation and onMessagesUpdate intentionally excluded
+
+  /**
+   * Periodic cleanup of expired messages.
+   * 
+   * Per UX Behavior (#12), Section 3.4: expired messages removed automatically.
+   */
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (messageHandlerRef.current) {
+        messageHandlerRef.current.removeExpiredMessages();
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Get messages from handler store (which includes both sent and received messages)
   const selectedMessages = selectedConversationId
-    ? messagesByConversation[selectedConversationId] || []
+    ? (messageHandlerRef.current
+        ? messageHandlerRef.current.getMessages(selectedConversationId)
+        : messagesByConversation[selectedConversationId] || [])
     : [];
 
   const selectedConversation = selectedConversationId
@@ -96,34 +176,15 @@ export const App: React.FC<AppProps> = ({
       // Send message via API
       const message = await messageApi.sendMessage(conversationId, senderId, content);
 
-      // Optimistic update: add message to conversation
-      setMessagesByConversation((prev) => {
-        const conversationMessages = prev[conversationId] || [];
-        const updated = [message, ...conversationMessages]; // Newest first
-        const next = { ...prev, [conversationId]: updated };
-        
-        // Notify parent of update
-        if (onMessagesUpdate) {
-          onMessagesUpdate(conversationId, updated);
-        }
-        
-        return next;
-      });
-
-      // Subscribe to delivery updates
-      messageApi.subscribeToDeliveryUpdates(message.message_id, (newState) => {
+      // Optimistic update: add message to message handler store
+      // This ensures deduplication and proper ordering
+      if (messageHandlerRef.current) {
+        messageHandlerRef.current.addMessage(message);
+      } else {
+        // Fallback if handler not initialized yet
         setMessagesByConversation((prev) => {
           const conversationMessages = prev[conversationId] || [];
-          const updated = conversationMessages.map((msg) =>
-            msg.message_id === message.message_id
-              ? {
-                  ...msg,
-                  state: newState,
-                  is_failed: newState === "failed",
-                  display_state: newState === "failed" ? "failed" : "delivered",
-                }
-              : msg
-          );
+          const updated = [message, ...conversationMessages]; // Newest first
           const next = { ...prev, [conversationId]: updated };
           
           // Notify parent of update
@@ -133,6 +194,41 @@ export const App: React.FC<AppProps> = ({
           
           return next;
         });
+      }
+
+      // Subscribe to delivery updates
+      messageApi.subscribeToDeliveryUpdates(message.message_id, (newState) => {
+        // Update message in handler store (ensures proper state reconciliation)
+        if (messageHandlerRef.current) {
+          messageHandlerRef.current.updateMessage(message.message_id, {
+            state: newState,
+            is_failed: newState === "failed",
+            display_state: newState === "failed" ? "failed" : "delivered",
+          });
+        } else {
+          // Fallback if handler not initialized yet
+          setMessagesByConversation((prev) => {
+            const conversationMessages = prev[conversationId] || [];
+            const updated = conversationMessages.map((msg) =>
+              msg.message_id === message.message_id
+                ? {
+                    ...msg,
+                    state: newState,
+                    is_failed: newState === "failed",
+                    display_state: newState === "failed" ? "failed" : "delivered",
+                  }
+                : msg
+            );
+            const next = { ...prev, [conversationId]: updated };
+            
+            // Notify parent of update
+            if (onMessagesUpdate) {
+              onMessagesUpdate(conversationId, updated);
+            }
+            
+            return next;
+          });
+        }
       });
 
       return message;

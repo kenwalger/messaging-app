@@ -63,9 +63,16 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Interactive messaging (send path only)
+**Current Phase:** Incoming message handling and live updates
 
 **Completed:**
+- Incoming message handling and live updates
+  - Transport abstraction (WebSocket + REST polling)
+  - Message deduplication and ordering
+  - State reconciliation
+  - Automatic UI updates
+  - Connection lifecycle handling
+- Interactive messaging (send path only)
 - Interactive messaging (send path only)
   - Message composition and sending
   - Optimistic updates and delivery state transitions

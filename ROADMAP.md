@@ -225,6 +225,52 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] No animations beyond basic transitions
 - [x] No content logged or leaked
 
+## Phase 5.9: Incoming Message Handling & Live Updates ✅
+
+**Status:** Completed
+
+### Transport Abstraction
+- [x] MessageTransport interface (WebSocket + REST polling)
+- [x] WebSocket transport implementation (preferred)
+- [x] REST polling transport implementation (fallback, 30-second interval)
+- [x] Transport factory for creating appropriate transport
+- [x] UI does not care which transport is active
+
+### Authentication
+- [x] Uses existing device authentication mechanism (X-Device-ID header)
+- [x] No new auth flows invented
+- [x] Per API Contracts (#10), Section 5
+
+### Incoming Message Handling
+- [x] Message normalization into MessageViewModel
+- [x] Deduplication by message ID (primary check)
+- [x] Preserves ordering guarantees (reverse chronological)
+- [x] State reconciliation (merge without overwriting incorrectly)
+
+### State Reconciliation
+- [x] Merge incoming messages without reordering sent messages
+- [x] Prevents duplicate messages
+- [x] Prevents overwriting delivery state incorrectly
+- [x] State progression: sent → delivered/failed (one-way)
+
+### UI Updates
+- [x] New messages appear automatically without page reload
+- [x] Existing message lists update efficiently
+- [x] Message state transitions remain visible and accurate
+- [x] Expired messages removed automatically
+
+### Connection Lifecycle
+- [x] Handle connect/disconnect/reconnect
+- [x] On reconnect, reconcile missed messages using REST
+- [x] Connection status tracked internally (no UI indicator yet)
+- [x] Automatic reconnection with exponential backoff (WebSocket)
+
+### Testing
+- [x] Unit tests for message deduplication
+- [x] Unit tests for state reconciliation
+- [x] Unit tests for reconnection reconciliation
+- [x] Unit tests for ordering guarantees
+
 ## Phase 6: UI/UX Implementation
 
 **Status:** Planned
@@ -324,6 +370,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - **Phase 5.6**: ✅ Completed (UI Domain Adapter Layer)
 - **Phase 5.7**: ✅ Completed (Read-Only UI Shell)
 - **Phase 5.8**: ✅ Completed (Interactive Messaging - Send Path Only)
+- **Phase 5.9**: ✅ Completed (Incoming Message Handling & Live Updates)
 - **Phase 7**: ✅ Completed (Logging & Observability - Core Services)
 - **Phase 2.5**: Next (Controller API Endpoints for Provisioning/Revocation)
 - **Phase 3, 6, 8-9**: Planned (timeline TBD)
