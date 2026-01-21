@@ -13,12 +13,13 @@
  * - Reconnection reconciliation
  */
 
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { MessageHandlerService } from "../services/messageHandler";
 import { MessageTransport, ConnectionStatus } from "../services/messageTransport";
 import { MessageViewModel } from "../types";
 
 describe("MessageHandlerService", () => {
-  let mockTransport: jest.Mocked<MessageTransport>;
+  let mockTransport: ReturnType<typeof vi.fn>;
   let handler: MessageHandlerService;
   let onMessageHandler: ((message: MessageViewModel) => void) | null = null;
   let onStatusChangeHandler: ((status: ConnectionStatus) => void) | null = null;
@@ -26,14 +27,14 @@ describe("MessageHandlerService", () => {
   beforeEach(() => {
     // Create mock transport
     mockTransport = {
-      connect: jest.fn(async (deviceId, onMessage, onStatusChange) => {
+      connect: vi.fn(async (deviceId, onMessage, onStatusChange) => {
         onMessageHandler = onMessage;
         onStatusChangeHandler = onStatusChange;
       }),
-      disconnect: jest.fn(),
-      getStatus: jest.fn(() => "connected"),
-      isConnected: jest.fn(() => true),
-    } as unknown as jest.Mocked<MessageTransport>;
+      disconnect: vi.fn(),
+      getStatus: vi.fn(() => "connected"),
+      isConnected: vi.fn(() => true),
+    } as unknown as MessageTransport;
 
     handler = new MessageHandlerService(mockTransport, "device-001");
   });
@@ -69,7 +70,7 @@ describe("MessageHandlerService", () => {
   });
 
   it("handles incoming messages and deduplicates", async () => {
-    const onUpdate = jest.fn();
+    const onUpdate = vi.fn();
     handler.setOnMessagesUpdate(onUpdate);
 
     await handler.start();
@@ -91,7 +92,7 @@ describe("MessageHandlerService", () => {
   });
 
   it("notifies UI when new messages arrive", async () => {
-    const onUpdate = jest.fn();
+    const onUpdate = vi.fn();
     handler.setOnMessagesUpdate(onUpdate);
 
     await handler.start();
@@ -123,7 +124,7 @@ describe("MessageHandlerService", () => {
   });
 
   it("handles reconnection reconciliation", async () => {
-    const onUpdate = jest.fn();
+    const onUpdate = vi.fn();
     handler.setOnMessagesUpdate(onUpdate);
 
     await handler.start();

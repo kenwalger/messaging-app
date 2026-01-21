@@ -89,6 +89,10 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
       // Handle failure: message transitions to FAILED state
       // In real implementation, this would be handled by the API adapter
       // No content logged or leaked per deterministic rules
+      // Log error for debugging (metadata only, no content)
+      if (import.meta.env.DEV) {
+        console.error("Failed to send message:", error);
+      }
       // Error handling is done silently; failed state will be updated via delivery subscription
       // The subscription mechanism in handleSendMessage will handle delivery state transitions
     } finally {

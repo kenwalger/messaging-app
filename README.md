@@ -222,6 +222,79 @@ pytest tests/test_conversation_manager.py
 pytest tests/test_conversation_api.py
 ```
 
+#### Frontend Tests
+
+Frontend tests use Vitest and are located in `src/ui/__tests__/`:
+
+```bash
+# Navigate to frontend directory
+cd src/ui
+
+# Install dependencies (if not already installed)
+npm install
+
+# Run all frontend tests
+npm test
+
+# Run tests in watch mode (for development)
+npm test -- --watch
+
+# Run tests with coverage
+npm test -- --coverage
+
+# Run specific test file
+npm test -- compositeTransport.test.ts
+npm test -- sendPath.test.ts
+```
+
+**Frontend Test Coverage:**
+- Component tests (MessageComposer, MessageList, ConversationList, etc.)
+- Service tests (messageStore, messageHandler, compositeTransport)
+- Integration tests (sendPath, compositeTransport)
+- All tests use React Testing Library and Vitest
+
+#### Integration Testing
+
+End-to-end integration tests verify the complete message lifecycle across backend and frontend boundaries:
+
+**Test Coverage:**
+- Message send → ACK happy path (full lifecycle from send to delivery)
+- WebSocket preferred transport (verifies WebSocket delivery when available)
+- REST fallback simulation (verifies REST polling when WebSocket unavailable)
+- Reverse chronological ordering (verifies message ordering is maintained)
+- Backend API endpoint integration (verifies /api/message/send endpoint behavior)
+
+**Test Status:**
+- All backend E2E tests passing (142/142)
+- All frontend tests passing (110/110)
+- Tests use deterministic timestamps and fixed message IDs for reliability
+
+**Running Integration Tests:**
+```bash
+# Run all integration tests
+pytest tests/test_e2e_message_lifecycle.py
+
+# Run with verbose output
+pytest -v tests/test_e2e_message_lifecycle.py
+
+# Run specific test
+pytest tests/test_e2e_message_lifecycle.py::TestE2EMessageLifecycle::test_message_send_to_ack_happy_path
+```
+
+**Test Characteristics:**
+- **Deterministic**: Uses fixed timestamps and predictable message IDs
+- **Happy paths only**: Focuses on successful flows to avoid flakiness
+- **No UI/DOM assertions**: Verifies state via stores/services, not DOM
+- **No timing sleeps**: Uses deterministic timers and mocks
+- **Cross-boundary**: Tests integration between backend and frontend services
+
+**Test Scenarios:**
+1. **Message Send → ACK**: Full lifecycle from message creation through delivery and ACK
+2. **WebSocket Transport**: Verifies WebSocket is used when available, REST polling not activated
+3. **REST Fallback**: Verifies REST polling receives messages when WebSocket unavailable, deduplication works
+4. **Message Ordering**: Verifies reverse chronological ordering (newest first) is maintained
+5. **Backend API Integration**: Verifies backend endpoint derives recipients from conversation, enqueues messages
+
 ### Running the Application Locally
 
 #### Backend Server

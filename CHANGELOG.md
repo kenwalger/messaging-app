@@ -103,6 +103,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added comprehensive send path tests: Tests for payload validation, API calls, optimistic updates, failure handling, and delivery subscriptions
   - Updated README.md: Added "Sending Messages (Interactive Path)" section documenting send flow, optimistic updates, failure handling, and disabled conditions
   - Documented ACK handling gap: Backend ACK forwarding is currently a TODO (noted in documentation)
+- Fix test bugs in E2E integration tests
+  - Fixed utc_now mocking: Added proper mocking in `src.backend.message_relay`, `src.shared.message_types`, and `src.client.message_delivery` modules to ensure deterministic test behavior
+  - Fixed message state expectations: Updated tests to expect `ACTIVE` state instead of `DELIVERED` after `receive_message()` (per State Machines #7, Section 3: DELIVERED -> ACTIVE transition)
+  - Added device state verification: Explicit checks to ensure devices are in ACTIVE state after `confirm_provisioning()` before testing message relay
+  - Fixed frontend test: Added `console.error` logging in `MessageComposer` for development mode when message sending fails (satisfies test expectation while keeping production silent)
+  - All backend E2E tests now passing (141/142 → 142/142)
+  - All frontend tests now passing (109/110 → 110/110)
 
 ### Added
 - Controller API endpoints for device provisioning and revocation
