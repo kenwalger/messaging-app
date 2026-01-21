@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Read-only UI shell (React + TypeScript + Tailwind CSS)
+  - React components for read-only message and conversation display
+  - StatusIndicator component for device state display
+  - ConversationList component for active conversations
+  - MessageList component with reverse chronological ordering
+  - MessageRow component with visual distinction for states
+  - App component orchestrating the UI shell
+  - TypeScript types mirroring Python UI domain models
+  - Tailwind CSS styling with neutral, enterprise-safe visual tone
+  - Mock data fixtures for Storybook-style testing
+  - Unit tests for rendering, ordering, and neutral mode enforcement
+  - No sound, no animation, no urgency cues per UX Behavior (#12)
+  - Visual distinction for delivered/failed/expired messages
+  - Read-only mode indicators for neutral enterprise mode
 - UI domain adapter layer
   - UI domain models (view models) per UX Behavior (#12)
   - MessageViewModel with derived UX flags (is_expired, is_failed, is_read_only)

@@ -172,6 +172,30 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Comprehensive unit tests (13 test cases, all passing)
 - [x] UI domain adapter layer diagrams (Mermaid)
 
+## Phase 5.7: Read-Only UI Shell ✅
+
+**Status:** Completed
+
+### React Components
+- [x] StatusIndicator component for device state display
+- [x] ConversationList component for active conversations
+- [x] MessageList component with reverse chronological ordering
+- [x] MessageRow component with visual distinction for states
+- [x] App component orchestrating the UI shell
+- [x] TypeScript types mirroring Python UI domain models
+- [x] Tailwind CSS styling with neutral, enterprise-safe visual tone
+- [x] Mock data fixtures for Storybook-style testing
+- [x] Unit tests for rendering, ordering, and neutral mode enforcement
+
+### UI Features
+- [x] Reverse chronological message order (newest first per Resolved Clarifications #53)
+- [x] Read-only mode indicators (neutral enterprise mode per Resolved Clarifications #38)
+- [x] Visual distinction for delivered/failed/expired messages per UX Behavior (#12)
+- [x] Expired message filtering (removed automatically per UX Behavior #12, Section 3.4)
+- [x] Failed message distinction (explicitly distinguishable per UX Behavior #12, Section 3.6)
+- [x] No sound, no animation, no urgency cues per UX Behavior (#12), Section 2
+- [x] Neutral color scheme (no red/green/security color metaphors per UX Behavior #12, Section 5)
+
 ## Phase 6: UI/UX Implementation
 
 **Status:** Planned
@@ -269,6 +293,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - **Phase 5**: ✅ Completed (Conversation Management - Backend API)
 - **Phase 5.5**: ✅ Completed (API Boundary & Adapter Layer)
 - **Phase 5.6**: ✅ Completed (UI Domain Adapter Layer)
+- **Phase 5.7**: ✅ Completed (Read-Only UI Shell)
 - **Phase 7**: ✅ Completed (Logging & Observability - Core Services)
 - **Phase 2.5**: Next (Controller API Endpoints for Provisioning/Revocation)
 - **Phase 3, 6, 8-9**: Planned (timeline TBD)
