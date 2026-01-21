@@ -18,6 +18,10 @@ isort>=5.12.0,<6.0.0
 # Type stubs
 types-mock>=1.0.0
 
+# Web framework
+fastapi>=0.104.0,<1.0.0
+uvicorn[standard]>=0.24.0,<1.0.0
+
 # Note: Additional dependencies will be added as modules are implemented:
 # - WebSocket client (e.g., websockets, aiohttp)
 # - HTTP client (e.g., requests, httpx)

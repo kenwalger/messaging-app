@@ -268,6 +268,9 @@ class MessageRelayService:
         }
         
         # Send via WebSocket
+        # Note: WebSocketManager.send_to_device() is sync for Protocol compatibility
+        # Actual async sending should be handled by the WebSocket manager implementation
+        # For now, we'll use the sync method (FastAPIWebSocketManager will handle async internally)
         return self.websocket_manager.send_to_device(recipient_id, json.dumps(ws_message))
     
     def get_pending_messages(

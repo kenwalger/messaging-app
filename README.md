@@ -63,9 +63,15 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Controller API endpoints for device provisioning and revocation
+**Current Phase:** Backend Server Infrastructure (Completed) - Ready for frontend integration
 
 **Completed:**
+- Backend Server Infrastructure
+  - Minimal FastAPI server wrapper with all API endpoints wired to existing services
+  - WebSocket support for real-time message delivery
+  - Health check endpoint
+  - Server runs on `http://127.0.0.1:8000` by default
+  - Ready for frontend integration
 - Controller API endpoints for device provisioning and revocation
   - POST /api/device/provision: Creates device in Pending state
   - POST /api/device/provision/confirm: Transitions Pending → Provisioned
@@ -211,25 +217,45 @@ pytest tests/test_conversation_api.py
 
 ### Running the Application Locally
 
-#### Backend
+#### Backend Server
 
-The backend is a Python application. To run it locally:
+The backend server can be started using uvicorn:
 
 ```bash
-# Ensure virtual environment is activated
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Activate virtual environment (if not already active)
+source venv/bin/activate
 
 # Install dependencies (if not already installed)
 pip install -r requirements.txt
-pip install -e .
 
-# Run backend server
-# Note: Backend server implementation is in progress
-# When available, run with:
-# python -m src.backend.server
+# Run the server
+uvicorn src.backend.server:app --reload
+
+# Or run directly
+python -m src.backend.server
 ```
 
-**Note:** The backend server implementation is currently in development. The core services (message relay, conversation API, device registry, etc.) are implemented and tested, but the HTTP server wrapper is pending.
+The server will start on `http://127.0.0.1:8000` by default.
+
+**Available Endpoints:**
+- Health check: `GET /health`
+- Controller API: `POST /api/device/provision`, `POST /api/device/provision/confirm`, `POST /api/device/revoke`
+- Conversation API: `POST /api/conversation/create`, `POST /api/conversation/join`, `POST /api/conversation/leave`, `POST /api/conversation/close`, `GET /api/conversation/info`
+- Message API: `POST /api/message/send`, `GET /api/message/receive`
+- Logging API: `POST /api/log/event`
+- WebSocket: `WS /ws/messages` (for real-time message delivery)
+
+**Note:** Frontend development server setup is pending (see Phase 6.1 in ROADMAP.md).
+
+The server will start on `http://127.0.0.1:8000` by default.
+
+**Available Endpoints:**
+- Health check: `GET /health`
+- Controller API: `POST /api/device/provision`, `POST /api/device/provision/confirm`, `POST /api/device/revoke`
+- Conversation API: `POST /api/conversation/create`, `POST /api/conversation/join`, `POST /api/conversation/leave`, `POST /api/conversation/close`, `GET /api/conversation/info`
+- Message API: `POST /api/message/send`, `GET /api/message/receive`
+- Logging API: `POST /api/log/event`
+- WebSocket: `WS /ws/messages` (for real-time message delivery)
 
 #### Frontend (UI)
 
@@ -257,7 +283,7 @@ For full-stack development, you'll need to run both backend and frontend:
 ```bash
 # Terminal 1: Backend
 source venv/bin/activate
-# python -m src.backend.server  # When available
+uvicorn src.backend.server:app --reload
 
 # Terminal 2: Frontend
 cd src/ui
@@ -266,10 +292,10 @@ cd src/ui
 
 **Current Status:**
 - Backend services: ✅ Implemented and tested
-- Backend HTTP server: ⏳ Pending
+- Backend HTTP server: ✅ Implemented (FastAPI with all endpoints)
 - Frontend React components: ✅ Implemented
 - Frontend build/dev server: ⏳ Pending
-- API integration: ⏳ Pending
+- API integration: ⏳ Pending (frontend can now connect to backend)
 
 See [ROADMAP.md](ROADMAP.md) for current development status.
 
