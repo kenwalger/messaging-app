@@ -386,13 +386,34 @@ async def send_message(
     recipients = request.get("recipients", [])
     payload = request.get("payload", "")  # Encrypted payload (base64 or hex string)
     expiration = request.get("expiration")  # ISO timestamp string
+    conversation_id = request.get("conversation_id", "")
     
-    # Validate recipients list is not empty
+    # If recipients list is empty, derive from conversation participants
     if not recipients:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: recipients list cannot be empty",
-        )
+        if not conversation_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid request: recipients list or conversation_id must be provided",
+            )
+        
+        # Get conversation participants
+        conversation_registry = get_conversation_registry()
+        participants = conversation_registry.get_conversation_participants(conversation_id)
+        
+        if not participants:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found or has no participants",
+            )
+        
+        # Exclude sender from recipients (they shouldn't receive their own message)
+        recipients = [p for p in participants if p != device_id]
+        
+        if not recipients:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid request: no recipients available (conversation has only sender)",
+            )
     
     # Validate payload is a string
     if not isinstance(payload, str):
@@ -449,7 +470,7 @@ async def send_message(
         encrypted_payload=encrypted_payload,
         message_id=message_id,
         expiration_timestamp=expiration_timestamp,
-        conversation_id=request.get("conversation_id", ""),
+        conversation_id=conversation_id,
     )
     
     if not success:

@@ -366,6 +366,59 @@ The frontend implements automatic resilience for WebSocket connections:
 - Prevents duplicate messages when the same message arrives via both WebSocket and REST polling
 - State reconciliation ensures message states transition correctly (sent → delivered → failed)
 
+#### Sending Messages (Interactive Path)
+
+The frontend implements an interactive message send path with optimistic updates:
+
+**Message Composition:**
+- User composes message in `MessageComposer` component
+- Payload validation occurs before send (empty/whitespace-only messages rejected)
+- Content is trimmed before sending
+
+**Optimistic Updates:**
+- Message immediately appears in UI as "Queued" (PENDING state) when Send is clicked
+- Message ordering remains correct (reverse chronological, newest first)
+- No duplicate local insertion (deduplication handled by message store)
+
+**API Call:**
+- Frontend calls `POST /api/message/send` with:
+  - `X-Device-ID` header for device authentication
+  - Empty `recipients` array (backend derives recipients from `conversation_id`)
+  - Message payload (plaintext in development, encrypted in production)
+  - Expiration timestamp (7 days default)
+  - Conversation ID
+- Backend validates device state, conversation state, and payload
+- Backend enqueues message for delivery (non-blocking)
+
+**Delivery State Transitions:**
+- **PENDING → DELIVERED**: When delivery succeeds (via ACK mechanism)
+- **PENDING → FAILED**: When delivery fails (network error, backend unavailable)
+- State transitions update UI automatically without refresh
+- No reordering occurs during state transitions
+
+**Failure Handling:**
+- Network failures handled gracefully (message transitions to FAILED state)
+- Backend unavailable errors handled silently
+- No retry UI exposed (automatic retries handled by backend)
+- UI remains consistent and usable after failures
+
+**Disabled Send Conditions:**
+- **Neutral enterprise mode**: Send button disabled when device is revoked
+- **Closed conversation**: Send button disabled when conversation is closed
+- **Read-only device**: Send button disabled when device cannot send
+- Clear but neutral explanation shown (no error messages)
+- No API call attempted when send is disabled
+
+**Logging & Observability:**
+- Send attempts logged (metadata only, no message content)
+- Failure events are observable via logging service
+- No message content logged or leaked per Logging & Observability (#14)
+
+**Note on ACK Handling:**
+- Backend ACK forwarding is currently a TODO (see `src/backend/server.py` line 635)
+- Current implementation assumes delivery success when HTTP POST succeeds
+- Full ACK mechanism will be implemented in future iteration
+
 #### Full Stack Development
 
 For full-stack development, you'll need to run both backend and frontend:

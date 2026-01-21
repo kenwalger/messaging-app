@@ -95,6 +95,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed timer reset issue: Fallback timer no longer resets on reconnection attempts, ensuring fallback activates after 15s total disconnect time
   - Fixed unconditional fallback timer: Timer only schedules if WebSocket is not connected immediately
   - Improved test coverage: Added tests for REST fallback activation, WebSocket reconnection handling, timer reset prevention, and message forwarding from both transports
+- Interactive message send path verification and hardening
+  - Fixed backend validation: Backend now derives recipients from conversation_id when recipients list is empty (per frontend expectation)
+  - Added payload validation: Frontend now validates and trims message content before sending
+  - Verified optimistic updates: Messages appear immediately in UI as PENDING state with correct ordering
+  - Verified disabled send conditions: Send button properly disabled for neutral enterprise mode, revoked devices, and closed conversations
+  - Added comprehensive send path tests: Tests for payload validation, API calls, optimistic updates, failure handling, and delivery subscriptions
+  - Updated README.md: Added "Sending Messages (Interactive Path)" section documenting send flow, optimistic updates, failure handling, and disabled conditions
+  - Documented ACK handling gap: Backend ACK forwarding is currently a TODO (noted in documentation)
 
 ### Added
 - Controller API endpoints for device provisioning and revocation
