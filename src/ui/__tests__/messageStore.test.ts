@@ -12,6 +12,7 @@
  * - State reconciliation (merge without overwriting incorrectly)
  */
 
+import { describe, it, expect, beforeEach } from 'vitest'
 import { InMemoryMessageStore } from "../services/messageStore";
 import { MessageViewModel } from "../types";
 

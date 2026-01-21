@@ -11,6 +11,7 @@
  * - Store subscription works correctly
  */
 
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MessagingView } from "../components/MessagingView";
@@ -19,17 +20,17 @@ import { MessageTransport } from "../services/messageTransport";
 import { MessageViewModel } from "../types";
 
 describe("MessagingView", () => {
-  let mockTransport: jest.Mocked<MessageTransport>;
+  let mockTransport: vi.Mocked<MessageTransport>;
   let messageHandler: MessageHandlerService;
 
   beforeEach(() => {
     // Create mock transport
     mockTransport = {
-      connect: jest.fn(async () => {}),
-      disconnect: jest.fn(async () => {}),
-      getStatus: jest.fn(() => "connected"),
-      isConnected: jest.fn(() => true),
-    } as unknown as jest.Mocked<MessageTransport>;
+      connect: vi.fn(async () => {}),
+      disconnect: vi.fn(async () => {}),
+      getStatus: vi.fn(() => "connected"),
+      isConnected: vi.fn(() => true),
+    } as unknown as vi.Mocked<MessageTransport>;
 
     messageHandler = new MessageHandlerService(mockTransport, "device-001");
   });
@@ -82,7 +83,9 @@ describe("MessagingView", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Conversation/)).toBeInTheDocument();
+      // Use getAllByText since "Conversation" appears in both the header and conversation items
+      const conversations = screen.getAllByText(/Conversation/);
+      expect(conversations.length).toBeGreaterThanOrEqual(1);
     });
 
     // Should show 2 conversations
@@ -105,7 +108,9 @@ describe("MessagingView", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Conversation/)).toBeInTheDocument();
+      // Use getAllByText since "Conversation" appears in both the header and conversation items
+      const conversations = screen.getAllByText(/Conversation/);
+      expect(conversations.length).toBeGreaterThanOrEqual(1);
     });
 
     // Add new message to different conversation
@@ -136,7 +141,9 @@ describe("MessagingView", () => {
 
     await waitFor(() => {
       // Should show messages for selected conversation
-      expect(screen.getByText(/device-002/)).toBeInTheDocument();
+      // Use getAllByText since device-002 appears in both conversation list and message pane
+      const deviceElements = screen.getAllByText(/device-002/);
+      expect(deviceElements.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -155,7 +162,9 @@ describe("MessagingView", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Queued/)).toBeInTheDocument();
+      // Use getAllByText since "Queued" appears in both conversation list and message pane
+      const queuedElements = screen.getAllByText(/Queued/);
+      expect(queuedElements.length).toBeGreaterThanOrEqual(1);
     });
 
     // Update message state to delivered
@@ -193,9 +202,10 @@ describe("MessagingView", () => {
 
   it("filters expired messages from display", async () => {
     const now = new Date("2024-01-01T12:00:00Z");
-    const activeMessage = createMessage("msg-001", "conv-001", now, "delivered");
+    // Use different sender IDs to distinguish messages
+    const activeMessage = createMessage("msg-001", "conv-001", now, "delivered", "device-002");
     const expiredMessage: MessageViewModel = {
-      ...createMessage("msg-002", "conv-001", new Date(now.getTime() - 86400000), "expired"),
+      ...createMessage("msg-002", "conv-001", new Date(now.getTime() - 86400000), "expired", "device-003"),
       is_expired: true,
     };
 
@@ -212,8 +222,10 @@ describe("MessagingView", () => {
 
     await waitFor(() => {
       // Should only show active message, not expired
-      const messages = screen.queryAllByText(/msg-/);
-      expect(messages.length).toBeGreaterThanOrEqual(1);
+      // Active message's sender should be visible
+      expect(screen.getByText(/device-002/)).toBeInTheDocument();
+      // Expired message's sender should NOT be visible (filtered out)
+      expect(screen.queryByText(/device-003/)).not.toBeInTheDocument();
     });
   });
 

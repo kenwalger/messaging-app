@@ -11,6 +11,7 @@
  * - Empty state handling
  */
 
+import { describe, it, expect } from 'vitest'
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { ConversationList } from "../components/ConversationList";
@@ -84,7 +85,7 @@ describe("ConversationList", () => {
       createConversation("conv-001", 2),
     ];
 
-    const handleSelect = jest.fn();
+    const handleSelect = vi.fn();
 
     render(
       <ConversationList

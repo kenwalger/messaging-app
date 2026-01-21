@@ -13,14 +13,15 @@
  * - Message content handling
  */
 
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MessageComposer } from "../components/MessageComposer";
 import { MessageViewModel } from "../types";
 
 describe("MessageComposer", () => {
-  const mockOnSendMessage = jest.fn();
-  const mockOnDeliveryUpdate = jest.fn();
+  const mockOnSendMessage = vi.fn();
+  const mockOnDeliveryUpdate = vi.fn();
 
   const createMockMessage = (state: "sent" | "delivered" | "failed"): MessageViewModel => ({
     message_id: "msg-001",
@@ -189,7 +190,7 @@ describe("MessageComposer", () => {
     const error = new Error("Failed to send message");
     mockOnSendMessage.mockRejectedValue(error);
 
-    const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     render(
       <MessageComposer

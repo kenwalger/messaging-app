@@ -208,6 +208,8 @@ pip install -e .
 
 ### Running Tests
 
+**Backend Tests (Python/pytest):**
+
 ```bash
 # Run all tests
 pytest
@@ -221,6 +223,29 @@ pytest tests/test_message_delivery_hardening.py
 pytest tests/test_conversation_manager.py
 pytest tests/test_conversation_api.py
 ```
+
+**Frontend Tests (TypeScript/Vitest):**
+
+```bash
+# Navigate to UI directory
+cd src/ui
+
+# Run all tests
+npm test
+
+# Run in watch mode
+npm test -- --watch
+
+# Run with coverage
+npm test -- --coverage
+
+# Run specific test file
+npm test -- __tests__/MessageComposer.test.tsx
+```
+
+**Test Status:**
+- Backend: ✅ All tests passing (118+ tests)
+- Frontend: ✅ All tests passing (110 tests)
 
 ### Running the Application Locally
 
@@ -421,18 +446,58 @@ The frontend implements an interactive message send path with optimistic updates
 
 #### Full Stack Development
 
-For full-stack development, you'll need to run both backend and frontend:
+For full-stack development, you'll need to run both backend and frontend in separate terminals:
 
+**Terminal 1: Backend Server**
 ```bash
-# Terminal 1: Backend
+# Activate virtual environment
 source venv/bin/activate
+
+# Start FastAPI server with auto-reload
 uvicorn src.backend.server:app --reload
 
-# Terminal 2: Frontend
-cd src/ui
-npm install  # First time only
-npm run dev
+# Server will be available at http://127.0.0.1:8000
 ```
+
+**Terminal 2: Frontend Development Server**
+```bash
+# Navigate to UI directory
+cd src/ui
+
+# Install dependencies (first time only)
+npm install
+
+# Start Vite dev server
+npm run dev
+
+# Frontend will be available at http://localhost:5173
+```
+
+**Verification:**
+1. Backend health check: Open `http://127.0.0.1:8000/health` in browser (should return `{"status":"ok"}`)
+2. Frontend connects automatically: Open `http://localhost:5173` - frontend will automatically:
+   - Check backend health on startup
+   - Fetch device state, messages, and conversations
+   - Establish WebSocket connection for real-time updates
+   - Fall back to mock data if backend is unavailable
+
+**Environment Variables:**
+
+**Backend:**
+- `CONTROLLER_API_KEYS` (optional): Comma-separated list of controller API keys for device provisioning/revocation. Defaults to `test-controller-key` for development.
+
+**Frontend:**
+- `VITE_API_BASE_URL` (optional): Backend API base URL. Defaults to `http://127.0.0.1:8000` if not set.
+  - Set via `.env` file: Create `src/ui/.env` with `VITE_API_BASE_URL=http://127.0.0.1:8000`
+  - Set via environment variable: `export VITE_API_BASE_URL=http://127.0.0.1:8000`
+
+**Integration Status:**
+- ✅ **Message Sending**: Frontend → `POST /api/message/send` → Backend (with `X-Device-ID` header)
+- ✅ **Message Receiving**: Backend → `WS /ws/messages` → Frontend (real-time delivery)
+- ✅ **Authentication**: `X-Device-ID` header included in all API calls
+- ✅ **Optimistic Updates**: Messages appear immediately in UI as "Queued" (PENDING state)
+- ✅ **Delivery State Transitions**: PENDING → DELIVERED/FAILED via ACK handling
+- ✅ **Error Handling**: Neutral error messages, no content logged (per Copy Rules #13)
 
 **Current Status:**
 - Backend services: ✅ Implemented and tested

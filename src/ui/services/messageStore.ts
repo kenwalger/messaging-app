@@ -156,12 +156,14 @@ export class InMemoryMessageStore implements MessageStore {
         (existing.state === "expired" && message.state === "expired");
 
       if (shouldUpdate) {
-        // Merge state: preserve created_at from original (server timestamp is authoritative)
+        // Merge state: preserve created_at and sender_id from original (server timestamp is authoritative, first sender prevents spoofing)
         // Update other fields from incoming message
         conversationMessages.set(messageId, {
           ...existing,
           ...message,
           // Preserve created_at from original (don't overwrite with newer timestamp)
+          // Preserve sender_id from original (prevent sender spoofing on duplicate message IDs)
+          sender_id: existing.sender_id,
           // This ensures stable ordering by server timestamp
           created_at: existing.created_at,
         });
