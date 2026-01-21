@@ -201,6 +201,18 @@ describe('Send Path End-to-End', () => {
     })
 
     it('should notify subscribers on failure', async () => {
+      // Use fixed timestamp and predictable random for message_id generation
+      const fixedTimestamp = 1234567890123
+      const fixedRandom = 0.123456789 // Will produce predictable base36 string
+      const mockDateNow = vi.spyOn(Date, 'now').mockReturnValue(fixedTimestamp)
+      const mockMathRandom = vi.spyOn(Math, 'random').mockReturnValue(fixedRandom)
+      
+      // Calculate expected message_id: msg-{timestamp}-{base36(random).substr(2, 9)}
+      // 0.123456789.toString(36).substr(2, 9) = "4fzzzxjyl"
+      const randomBase36 = fixedRandom.toString(36)
+      const randomSuffix = randomBase36.substr(2, 9) // Match the actual code's .substr() usage
+      const expectedMessageId = `msg-${fixedTimestamp}-${randomSuffix}`
+
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 500,
@@ -209,7 +221,8 @@ describe('Send Path End-to-End', () => {
       })
 
       const callback = vi.fn()
-      messageApi.subscribeToDeliveryUpdates('msg-001', callback)
+      // Subscribe with the expected message_id that will be generated
+      messageApi.subscribeToDeliveryUpdates(expectedMessageId, callback)
 
       try {
         await messageApi.sendMessage('conv-001', 'device-001', 'test message')
@@ -218,8 +231,12 @@ describe('Send Path End-to-End', () => {
       }
 
       // Callback should be called with 'failed' state
-      // (This happens in the catch block of sendMessage)
+      // (This happens in the catch block of sendMessage when message is created)
       expect(callback).toHaveBeenCalledWith('failed')
+
+      // Restore mocks
+      mockDateNow.mockRestore()
+      mockMathRandom.mockRestore()
     })
   })
 
