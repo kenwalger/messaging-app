@@ -62,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Methods allowed: `GET`, `POST`, `OPTIONS` (CORS preflight support)
   - Device auto-provisioning in development mode (devices automatically registered, provisioned, and activated on WebSocket connection)
   - Production mode requires manual device provisioning via Controller API (strict security)
+  - Code quality: Narrowed exception handling from broad Exception to specific ValueError and RuntimeError types
 
 ### Fixed
 - Minimal backend HTTP & WebSocket server for local development
