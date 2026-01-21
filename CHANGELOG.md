@@ -9,10 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - PR review feedback fixes for incoming message handling
-  - Fixed state reconciliation logic to handle failed and expired state transitions correctly
-  - Fixed React dependency array stale closure risk using ref for onMessagesUpdate callback
-  - Fixed race condition in selectedMessages computation during unmount
-  - Added comprehensive tests for delivered → failed and any → expired transitions
+  - Fixed state reconciliation logic to handle all state transitions correctly:
+    * delivered → failed (delivery failure after initial success)
+    * any → expired (expiration can happen at any time)
+    * delivered → delivered (allow metadata updates for messages in final state)
+    * failed → failed (allow metadata updates for messages in final state)
+  - Fixed React dependency array stale closure risk using refs for callbacks
+  - Fixed performance issue: excluded initialMessagesByConversation from deps to avoid recreating handler
+  - Removed overly defensive try-catch (getMessages doesn't throw)
+  - Added comprehensive tests for all state transitions including metadata updates
 
 ### Added
 - Incoming message handling and live updates

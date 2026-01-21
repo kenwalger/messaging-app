@@ -127,6 +127,7 @@ export class InMemoryMessageStore implements MessageStore {
       // delivered → failed (can happen if delivery later fails)
       // any → expired (can happen at any time if expiration timestamp passes)
       // Prevents overwriting delivered/failed with sent (backwards transition)
+      // Also allows same-state updates (delivered→delivered, failed→failed) for metadata updates
       const shouldUpdate =
         // sent → delivered/failed/expired (forward transition)
         (existing.state === "sent" && message.state !== "sent") ||
@@ -134,6 +135,10 @@ export class InMemoryMessageStore implements MessageStore {
         (existing.state === "sent" && message.state === "sent") ||
         // delivered → failed (delivery failure after initial success)
         (existing.state === "delivered" && message.state === "failed") ||
+        // delivered → delivered (same state, allow metadata updates)
+        (existing.state === "delivered" && message.state === "delivered") ||
+        // failed → failed (same state, allow metadata updates)
+        (existing.state === "failed" && message.state === "failed") ||
         // any → expired (expiration can happen at any time)
         message.state === "expired" ||
         // expired → expired (update expiration metadata)
