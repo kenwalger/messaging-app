@@ -7,7 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Minimal backend HTTP & WebSocket server for local development
+  - FastAPI server entrypoint (`src/backend/server.py`) with explicit dependency injection
+  - WebSocket connection manager (`src/backend/websocket_manager.py`) for real-time message delivery
+  - All API endpoints wired to existing services:
+    - Controller API: `/api/device/provision`, `/api/device/provision/confirm`, `/api/device/revoke`
+    - Conversation API: `/api/conversation/create`, `/api/conversation/join`, `/api/conversation/leave`, `/api/conversation/close`, `/api/conversation/info`
+    - Message API: `/api/message/send`, `/api/message/receive`
+    - Logging API: `/api/log/event`
+    - WebSocket: `/ws/messages` for real-time message delivery
+    - Health check: `/health`
+  - Device authentication via `X-Device-ID` header
+  - Controller authentication via `X-Controller-Key` header
+  - FastAPI and uvicorn dependencies added to `requirements.txt`
+  - Clear TODOs for encryption and auth hardening (TLS, rate limiting, etc.)
+  - Server runs on `http://0.0.0.0:8000` by default for local development
+
 ### Fixed
+- Critical WebSocket sync/async compatibility issue in backend server
+  - Fixed `FastAPIWebSocketManager.send_to_device()` to actually send messages instead of only checking connection existence
+  - Implemented message queue and background task for async WebSocket delivery
+  - WebSocket messages now properly delivered in real-time instead of falling back to REST polling
+  - Background task starts on app startup and stops on shutdown
+- Security vulnerability: hardcoded test API key in production code
+  - Removed hardcoded `"test-controller-key"` from `ControllerAuthService` initialization
+  - Controller API keys now loaded from `CONTROLLER_API_KEYS` environment variable (comma-separated)
+  - Falls back to test key only if no environment variable is set (with warning log for development)
+  - Added TODO for proper configuration management
+- Missing input validation in `/api/message/send` endpoint
+  - Added validation for empty recipients list
+  - Added validation for payload type (must be string)
+  - Added validation for empty payload
+  - Improved error messages for each validation failure
+- Duplicate documentation in README.md
+  - Removed duplicate "Available Endpoints" section
 - Controller API state transition error handling
   - Fixed revoke_device() to return 409 Conflict for invalid state transitions instead of 500 Backend Failure
   - Distinguishes between client errors (invalid state) and server errors (unexpected failures)

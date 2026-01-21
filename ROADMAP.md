@@ -285,7 +285,41 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Unit tests for reconnection reconciliation
 - [x] Unit tests for ordering guarantees
 
-## Phase 6: UI/UX Implementation
+## Phase 6: Backend Server Infrastructure ✅
+
+**Status:** Completed
+
+### Backend Server
+- [x] FastAPI server entrypoint with explicit dependency injection
+- [x] All API endpoints wired to existing services (no business logic changes)
+- [x] Controller API endpoints: `/api/device/provision`, `/api/device/provision/confirm`, `/api/device/revoke`
+- [x] Conversation API endpoints: `/api/conversation/create`, `/api/conversation/join`, `/api/conversation/leave`, `/api/conversation/close`, `/api/conversation/info`
+- [x] Message API endpoints: `/api/message/send`, `/api/message/receive`
+- [x] Logging API endpoint: `/api/log/event`
+- [x] WebSocket endpoint: `/ws/messages` for real-time message delivery
+- [x] Health check endpoint: `/health`
+- [x] Device authentication via `X-Device-ID` header
+- [x] Controller authentication via `X-Controller-Key` header
+- [x] WebSocket connection manager (`FastAPIWebSocketManager`) implementing `WebSocketManager` Protocol
+- [x] Server runs on `http://0.0.0.0:8000` by default for local development
+- [x] Clear TODOs for encryption and auth hardening (TLS, rate limiting, etc.)
+
+### Infrastructure
+- [x] FastAPI and uvicorn dependencies added to `requirements.txt`
+- [x] Explicit service initialization with dependency injection
+- [x] Infrastructure-only work (no business logic changes)
+
+## Phase 6.1: Frontend Development Server
+
+**Status:** Planned
+
+### Frontend Dev Server
+- [ ] Vite or equivalent build tool setup
+- [ ] API base URL configuration via environment variables
+- [ ] Development server with hot reload
+- [ ] Mock fallback still supported for testing
+
+## Phase 6.2: UI/UX Implementation
 
 **Status:** Planned
 
@@ -385,9 +419,11 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - **Phase 5.7**: ✅ Completed (Read-Only UI Shell)
 - **Phase 5.8**: ✅ Completed (Interactive Messaging - Send Path Only)
 - **Phase 5.9**: ✅ Completed (Incoming Message Handling & Live Updates)
+- **Phase 6**: ✅ Completed (Backend Server Infrastructure)
 - **Phase 7**: ✅ Completed (Logging & Observability - Core Services)
-- **Phase 2.5**: Next (Controller API Endpoints for Provisioning/Revocation)
-- **Phase 3, 6, 8-9**: Planned (timeline TBD)
+- **Phase 2.5**: ✅ Completed (Controller API Endpoints for Provisioning/Revocation)
+- **Phase 6.1**: Next (Frontend Development Server)
+- **Phase 3, 6.2, 8-9**: Planned (timeline TBD)
 
 ## Dependencies
 
