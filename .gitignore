@@ -206,3 +206,5 @@ temp/
 *.bak
 *.backup
 *~
+
+project_structure.txt

@@ -117,27 +117,14 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
   }, [messageHandler, isReadOnly]);
 
   /**
-   * Update conversations and messages from store.
-   */
-  const updateFromStore = useCallback(() => {
-    const derivedConversations = deriveConversations();
-    setConversations(derivedConversations);
-
-    // Update messages for all conversations
-    const allMessages = messageHandler.getAllMessages();
-    setMessagesByConversation(allMessages);
-
-    // Auto-select first conversation if none selected
-    if (!selectedConversationId && derivedConversations.length > 0) {
-      setSelectedConversationId(derivedConversations[0].conversation_id);
-    }
-  }, [messageHandler, deriveConversations, selectedConversationId]);
-
-  /**
    * Subscribe to message store updates.
+   * 
+   * Sets up callback and re-registers when messageHandler or isReadOnly changes.
+   * isReadOnly must be in dependencies to avoid stale closure when read-only state changes.
    */
   useEffect(() => {
     // Set up callback for message updates
+    // Use functional state updates to avoid dependency on state values
     messageHandler.setOnMessagesUpdate((conversationId, messages) => {
       // Update messages for this conversation
       setMessagesByConversation((prev) => ({
@@ -146,13 +133,27 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
       }));
 
       // Re-derive conversations (last message timestamp may have changed)
+      // Call deriveConversations directly (it's stable via useCallback)
       const derivedConversations = deriveConversations();
       setConversations(derivedConversations);
     });
 
     // Initial load from store
-    updateFromStore();
-  }, [messageHandler, deriveConversations, updateFromStore]);
+    const derivedConversations = deriveConversations();
+    setConversations(derivedConversations);
+
+    // Update messages for all conversations
+    const allMessages = messageHandler.getAllMessages();
+    setMessagesByConversation(allMessages);
+
+    // Auto-select first conversation if none selected
+    setSelectedConversationId((prev) => {
+      if (!prev && derivedConversations.length > 0) {
+        return derivedConversations[0].conversation_id;
+      }
+      return prev;
+    });
+  }, [messageHandler, deriveConversations]); // Include deriveConversations to re-register when isReadOnly changes
 
   const selectedMessages = selectedConversationId
     ? messagesByConversation[selectedConversationId] || []
