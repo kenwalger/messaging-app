@@ -483,6 +483,37 @@ class TestUIAdapter(unittest.TestCase):
             )
         )
         self.assertEqual(multi.display_name, "Conversation (3 participants)")
+    
+    def test_participant_view_model_validation(self) -> None:
+        """
+        Test ParticipantViewModel validation per ui_models.py.
+        
+        ParticipantViewModel validates that device_id cannot be empty.
+        """
+        from src.client.ui_models import ParticipantViewModel
+        
+        # Valid participant with device_id
+        valid_participant = ParticipantViewModel(
+            device_id="device-001",
+            display_name="Device 1",
+        )
+        self.assertEqual(valid_participant.device_id, "device-001")
+        self.assertEqual(valid_participant.display_name, "Device 1")
+        
+        # Valid participant without display_name
+        valid_participant_no_name = ParticipantViewModel(
+            device_id="device-002",
+        )
+        self.assertEqual(valid_participant_no_name.device_id, "device-002")
+        self.assertIsNone(valid_participant_no_name.display_name)
+        
+        # Invalid participant with empty device_id
+        with self.assertRaises(ValueError) as context:
+            ParticipantViewModel(
+                device_id="",
+                display_name="Device 1",
+            )
+        self.assertIn("device_id cannot be empty", str(context.exception))
 
 
 if __name__ == "__main__":
