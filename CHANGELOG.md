@@ -123,11 +123,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Critical ACK detection bug fix and ACK handling improvements
   - Fixed ACK detection logic in `messageHandler.ts`: Previous logic checked for empty `conversation_id`, but backend sends `conversation_id` in ACK messages, causing ACKs to be treated as regular messages
   - New ACK detection: Checks if `message_id` exists in store with state "sent" and incoming message has `sender_id` matching `device_id` with state "delivered" or "failed"
+  - **CRITICAL BUG FIX**: Added missing `get_message_sender()` and `get_message_conversation()` methods to `MessageRelayService` class
+    - These methods were referenced in `server.py` but did not exist in the actual file on disk, causing `AttributeError` at runtime when processing ACKs
+    - Methods are now properly implemented and accessible, preventing runtime errors in ACK forwarding mechanism
+    - Replaced private attribute access (`_pending_deliveries`) with proper public API methods
   - Removed duplicate UI notifications: `updateMessage()` already calls `_notifyUpdate()` internally, removed redundant call in ACK handling path
-  - Replaced private attribute access with proper API: Added `get_message_sender()` and `get_message_conversation()` methods to `MessageRelayService`
   - Improved race condition handling: Added comments explaining graceful handling of sender disconnections between connection check and send
   - Enhanced conversation_id handling: Uses `conversation_id` from ACK if provided, otherwise gets from metadata, ensuring it's always included in forwarded ACK
-  - ACK flow now works correctly: Recipient sends ACK → Backend forwards to sender → Sender correctly detects ACK and updates message state
+  - ACK flow now works correctly: Recipient sends ACK → Backend forwards to sender (using proper API methods) → Sender correctly detects ACK and updates message state
 
 ### Added
 - Controller API endpoints for device provisioning and revocation

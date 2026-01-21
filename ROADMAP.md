@@ -414,8 +414,11 @@ This roadmap outlines the planned development phases for AAM. All implementation
 
 ### Bug Fixes
 - [x] Fixed critical ACK detection bug: ACK detection now correctly identifies ACKs regardless of conversation_id presence
+- [x] **CRITICAL**: Added missing `get_message_sender()` and `get_message_conversation()` methods to `MessageRelayService`
+  - Methods were referenced in `server.py` but did not exist on disk, causing `AttributeError` at runtime
+  - Methods now properly implemented, preventing runtime errors in ACK forwarding
+  - Replaced private attribute access with proper public API methods
 - [x] Removed duplicate UI notifications in ACK handling path
-- [x] Replaced private attribute access with proper API methods (get_message_sender, get_message_conversation)
 - [x] Improved race condition handling in multi-recipient ACK scenarios
 - [x] Enhanced conversation_id handling in ACK forwarding
 
