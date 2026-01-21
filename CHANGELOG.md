@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Server runs on `http://0.0.0.0:8000` by default for local development
 
 ### Fixed
+- Replaced deprecated FastAPI event decorators with modern lifespan context manager
+  - Replaced `@app.on_event("startup")` and `@app.on_event("shutdown")` with `lifespan` context manager
+  - Uses `@asynccontextmanager` pattern per FastAPI best practices
+  - Improves compatibility with modern FastAPI versions
 - Critical WebSocket sync/async compatibility issue in backend server
   - Fixed `FastAPIWebSocketManager.send_to_device()` to actually send messages instead of only checking connection existence
   - Implemented message queue and background task for async WebSocket delivery
