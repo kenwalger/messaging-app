@@ -18,6 +18,7 @@ TODO: Encryption and auth hardening
 - Add proper error handling and logging
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -160,6 +161,8 @@ async def startup() -> None:
     
     Creates all service instances with explicit dependency injection.
     """
+    import os
+    
     global _device_registry, _conversation_registry, _identity_enforcement
     global _logging_service, _controller_auth, _controller_api
     global _conversation_service, _message_relay, _websocket_manager
@@ -174,7 +177,17 @@ async def startup() -> None:
     _websocket_manager = FastAPIWebSocketManager()
     
     # Initialize controller services
-    _controller_auth = ControllerAuthService(valid_api_keys=["test-controller-key"])
+    # TODO: Replace with proper configuration management
+    # Load controller API keys from environment variable
+    controller_api_keys = os.getenv("CONTROLLER_API_KEYS", "test-controller-key").split(",")
+    # Remove empty strings and strip whitespace
+    controller_api_keys = [key.strip() for key in controller_api_keys if key.strip()]
+    # Fallback to test key for development if no keys provided
+    if not controller_api_keys:
+        logger.warning("No CONTROLLER_API_KEYS environment variable set, using test key for development")
+        controller_api_keys = ["test-controller-key"]
+    
+    _controller_auth = ControllerAuthService(valid_api_keys=controller_api_keys)
     _controller_api = ControllerAPIService(
         device_registry=_device_registry,
         conversation_registry=_conversation_registry,
@@ -196,6 +209,10 @@ async def startup() -> None:
         websocket_manager=_websocket_manager,
         log_service=_logging_service,
     )
+    
+    # Start WebSocket background task for message delivery
+    event_loop = asyncio.get_event_loop()
+    _websocket_manager.start_background_task(event_loop)
     
     logger.info("Abiqua backend services initialized")
 
@@ -356,10 +373,32 @@ async def send_message(
     payload = request.get("payload", "")  # Encrypted payload (base64 or hex string)
     expiration = request.get("expiration")  # ISO timestamp string
     
-    if not recipients or not payload or not expiration:
+    # Validate recipients list is not empty
+    if not recipients:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: recipients, payload, and expiration required",
+            detail="Invalid request: recipients list cannot be empty",
+        )
+    
+    # Validate payload is a string
+    if not isinstance(payload, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request: payload must be a string",
+        )
+    
+    # Validate payload is not empty
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request: payload cannot be empty",
+        )
+    
+    # Validate expiration is provided
+    if not expiration:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request: expiration timestamp is required",
         )
     
     # Parse expiration timestamp
@@ -603,6 +642,18 @@ def create_app() -> FastAPI:
         Configured FastAPI application instance.
     """
     return app
+
+
+@app.on_event("shutdown")
+async def shutdown() -> None:
+    """
+    Clean up services on application shutdown.
+    """
+    global _websocket_manager
+    
+    if _websocket_manager:
+        _websocket_manager.stop_background_task()
+        logger.info("Abiqua backend services shut down")
 
 
 if __name__ == "__main__":

@@ -249,14 +249,6 @@ The server will start on `http://127.0.0.1:8000` by default.
 
 The server will start on `http://127.0.0.1:8000` by default.
 
-**Available Endpoints:**
-- Health check: `GET /health`
-- Controller API: `POST /api/device/provision`, `POST /api/device/provision/confirm`, `POST /api/device/revoke`
-- Conversation API: `POST /api/conversation/create`, `POST /api/conversation/join`, `POST /api/conversation/leave`, `POST /api/conversation/close`, `GET /api/conversation/info`
-- Message API: `POST /api/message/send`, `GET /api/message/receive`
-- Logging API: `POST /api/log/event`
-- WebSocket: `WS /ws/messages` (for real-time message delivery)
-
 #### Frontend (UI)
 
 The frontend is a React + TypeScript application. To run it locally:
