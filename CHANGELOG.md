@@ -81,6 +81,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed duplicate device state fetch in `main.tsx` (was fetching twice unnecessarily)
   - Removed redundant message read-only state update (messages already have state set when added to collection)
   - Added `.vite/` and `dist/` directories to `.gitignore` to prevent Vite build artifacts from being committed
+- WebSocket resilience and REST polling fallback
+  - Created composite transport (`src/ui/services/compositeTransport.ts`) that manages both WebSocket and REST polling
+  - Automatic REST polling fallback after 15s WebSocket disconnect (per Resolved Clarifications #51)
+  - REST polling stops immediately when WebSocket reconnects (WebSocket is preferred transport)
+  - Enhanced WebSocket transport with reconnect logging (development mode only, no content exposed)
+  - Message deduplication verified and working correctly (handled by message store)
+  - Transport factory updated to use composite transport when both WebSocket and API URLs are available
+  - Added unit tests for composite transport resilience behavior
+  - Updated README.md with WebSocket resilience documentation section
   - Distinguishes between client errors (invalid state) and server errors (unexpected failures)
   - Updated test expectations to match correct error semantics
 

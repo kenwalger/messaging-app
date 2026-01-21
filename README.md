@@ -342,6 +342,30 @@ If not set, the backend defaults to `test-controller-key` for development (with 
 - No stack traces or backend details are exposed to users
 - Network errors are handled silently with automatic retries
 
+#### WebSocket Resilience
+
+The frontend implements automatic resilience for WebSocket connections:
+
+**Reconnect Behavior:**
+- WebSocket automatically reconnects with exponential backoff (1s, 2s, 4s, 8s, ... up to 60s max)
+- No manual refresh required - reconnection happens automatically
+- Reconnect attempts are logged in development mode only (no content exposed)
+
+**REST Polling Fallback:**
+- If WebSocket is unavailable for >15 seconds, the frontend automatically falls back to REST polling
+- REST polling fetches messages every 30 seconds via `GET /api/message/receive`
+- Fallback activation is logged in development mode only
+
+**Transport Switching:**
+- REST polling stops immediately when WebSocket reconnects (WebSocket is preferred)
+- Messages are deduplicated by message ID to prevent duplicates when switching transports
+- The UI does not care which transport is active - messages appear seamlessly
+
+**Message Deduplication:**
+- Messages are deduplicated by message ID in the message store
+- Prevents duplicate messages when the same message arrives via both WebSocket and REST polling
+- State reconciliation ensures message states transition correctly (sent → delivered → failed)
+
 #### Full Stack Development
 
 For full-stack development, you'll need to run both backend and frontend:

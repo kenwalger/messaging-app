@@ -92,6 +92,10 @@ export class WebSocketTransport implements MessageTransport {
 
       this.ws.onopen = () => {
         this._updateStatus("connected");
+        // Log successful connection (no content, only event type per Logging & Observability #14)
+        if (import.meta.env.DEV && this.reconnectAttempts > 0) {
+          console.log(`[WebSocket] Reconnected successfully after ${this.reconnectAttempts} attempts`);
+        }
         this.reconnectAttempts = 0;
       };
 
@@ -105,6 +109,10 @@ export class WebSocketTransport implements MessageTransport {
 
       this.ws.onclose = () => {
         this._updateStatus("disconnected");
+        // Log reconnect attempt (no content, only event type per Logging & Observability #14)
+        if (import.meta.env.DEV) {
+          console.log(`[WebSocket] Connection closed, scheduling reconnect (attempt ${this.reconnectAttempts + 1})`);
+        }
         this._scheduleReconnect();
       };
     } catch (error) {
