@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Visible messaging UI with store-connected view
+  - MessagingView component that subscribes to message store
+  - Conversation list derived from message store in real time
+  - Message pane displaying messages in chronological order
+  - Live updates when store state changes (no duplicate state)
+  - Last message preview in conversation list
+  - Delivery state indicators (pending/delivered/failed)
+  - Lightweight tests for conversation list and message pane updates
+  - No reimplementation of message logic (uses existing store)
 - Hardened message store with comprehensive TypeScript tests
   - Enhanced message store with bulk add method for reconnection reconciliation
   - Comprehensive test suite covering:

@@ -63,9 +63,15 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Message store hardening and comprehensive testing
+**Current Phase:** Visible messaging UI implementation
 
 **Completed:**
+- Visible messaging UI with store-connected view
+  - MessagingView component subscribing to message store
+  - Conversation list with last message preview
+  - Message pane in chronological order
+  - Live updates when store state changes
+  - Delivery state indicators
 - Message store hardening with comprehensive TypeScript tests
   - Enhanced deduplication and ordering guarantees
   - Reconnection reconciliation support

@@ -61,6 +61,7 @@ export interface ConversationViewModel {
   last_message_at: string | null; // ISO datetime string or null
   created_at: string; // ISO datetime string
   display_name: string;
+  last_message_preview?: string; // Optional preview of last message
 }
 
 /**
