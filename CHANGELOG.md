@@ -35,6 +35,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - WebSocket connection established automatically for real-time message delivery
   - Graceful fallback to mock data if backend is unavailable
   - Error handling with neutral messages (no stack traces or backend details exposed)
+- End-to-end message delivery flow
+  - Frontend ACK sending when receiving messages via WebSocket
+  - Backend ACK forwarding to sender when recipient acknowledges delivery
+  - Frontend ACK handling to update message state from PENDING to DELIVERED
+  - Complete message lifecycle: Send → Delivery → ACK → UI Update
+  - Message state transitions: PENDING → DELIVERED → ACTIVE
+  - Automatic UI updates without refresh (optimistic updates + ACK reconciliation)
+  - WebSocket-based real-time message delivery and ACK handling
+  - REST polling fallback for message delivery (when WebSocket unavailable)
+  - Message ordering maintained (reverse chronological, newest first)
 
 ### Fixed
 - Minimal backend HTTP & WebSocket server for local development

@@ -499,10 +499,42 @@ The frontend implements an interactive message send path with optimistic updates
 - Failure events are observable via logging service
 - No message content logged or leaked per Logging & Observability (#14)
 
-**Note on ACK Handling:**
-- Backend ACK forwarding is currently a TODO (see `src/backend/server.py` line 635)
-- Current implementation assumes delivery success when HTTP POST succeeds
-- Full ACK mechanism will be implemented in future iteration
+**End-to-End Message Delivery Flow:**
+
+1. **Message Send (Frontend → Backend)**:
+   - User types message in UI and clicks send
+   - Frontend creates message with UUID v4 message_id, conversation_id, payload, timestamp
+   - Message sent via `POST /api/message/send` (HTTP, not WebSocket for sending)
+   - Backend validates, generates message_id, and enqueues for delivery
+   - Frontend optimistically updates UI with message in PENDING state ("Queued")
+
+2. **Message Delivery (Backend → Recipient)**:
+   - Backend attempts WebSocket delivery (preferred) to recipient
+   - If WebSocket unavailable, message queued for REST polling
+   - Recipient receives message via WebSocket or REST polling
+   - Recipient automatically sends ACK to backend via WebSocket
+
+3. **ACK Handling (Recipient → Backend → Sender)**:
+   - Backend receives ACK from recipient
+   - Backend forwards ACK to sender via WebSocket
+   - Sender's frontend receives ACK and updates message state: PENDING → DELIVERED
+   - UI updates automatically (no refresh needed)
+
+4. **Message State Transitions**:
+   - **PENDING** (sent): Message sent, waiting for delivery confirmation
+   - **DELIVERED**: Message delivered to recipient (ACK received)
+   - **ACTIVE**: Message received by recipient (for incoming messages)
+   - **FAILED**: Message delivery failed (network/backend error)
+
+**Testing End-to-End Flow:**
+
+1. Open two browser windows/tabs to `http://localhost:5173`
+2. In each window, ensure devices are provisioned and in a conversation
+3. Send a message from Window 1
+4. Verify in Window 1: Message appears immediately in "Queued" state
+5. Verify in Window 2: Message appears in conversation (received via WebSocket)
+6. Verify in Window 1: Message state transitions from "Queued" to "Delivered" (ACK received)
+7. Verify message ordering: Newest messages appear first (reverse chronological)
 
 #### Full Stack Development
 
@@ -540,6 +572,30 @@ npm run dev
    - Fetch device state, messages, and conversations
    - Establish WebSocket connection for real-time updates
    - Fall back to mock data if backend is unavailable
+
+**Testing End-to-End Message Delivery:**
+
+To test the complete message delivery flow:
+
+1. **Setup**: Open two browser windows/tabs to `http://localhost:5173`
+2. **Provision Devices**: In each window, ensure devices are provisioned and active
+3. **Create/Join Conversation**: Ensure both devices are in the same conversation
+4. **Send Message**: In Window 1, type a message and click send
+5. **Verify Sender (Window 1)**:
+   - Message appears immediately in "Queued" state (optimistic update)
+   - Message state transitions to "Delivered" when ACK received (typically <1 second)
+6. **Verify Recipient (Window 2)**:
+   - Message appears automatically without refresh (WebSocket delivery)
+   - Message shows in "Delivered" state
+7. **Verify Ordering**: Messages appear in reverse chronological order (newest first)
+
+**Known Limitations (POC Status):**
+- Message encryption is not yet implemented (payloads are sent as plaintext)
+- Authentication is device-based only (no user authentication)
+- Message persistence is in-memory only (messages lost on server restart)
+- No message editing or deletion
+- No file attachments
+- No read receipts beyond delivery ACKs
 
 **Environment Variables:**
 

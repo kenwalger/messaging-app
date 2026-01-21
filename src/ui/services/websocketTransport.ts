@@ -125,11 +125,42 @@ export class WebSocketTransport implements MessageTransport {
    * Handle incoming WebSocket message.
    * 
    * Normalizes WebSocket message format to MessageViewModel.
+   * Sends ACK for incoming messages.
+   * Handles ACK messages from backend for sent messages.
    * Per Resolved Clarifications (#51).
    */
   private _handleMessage(data: string): void {
     try {
-      const wsMessage: WebSocketMessage = JSON.parse(data);
+      const parsed = JSON.parse(data);
+
+      // Check if this is an ACK message (for sent messages)
+      if (parsed.type === "ack" && parsed.message_id) {
+        // This is an ACK for a message we sent
+        // Forward to message handler via callback
+        // ACK format: {type: "ack", message_id: "...", status: "delivered" | "failed"}
+        const ackMessage: MessageViewModel = {
+          message_id: parsed.message_id,
+          sender_id: this.deviceId, // ACK is for our own message
+          conversation_id: parsed.conversation_id || "", // May not be present in ACK
+          state: parsed.status === "failed" ? "failed" : "delivered",
+          created_at: new Date().toISOString(), // ACK timestamp
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Placeholder
+          is_expired: false,
+          is_failed: parsed.status === "failed",
+          is_read_only: false,
+          display_state: parsed.status === "failed" ? "failed" : "delivered",
+        };
+
+        // ACK messages are special - they update existing messages, not create new ones
+        // We'll use a special handler for ACKs (if provided)
+        if (this.onMessageHandler) {
+          this.onMessageHandler(ackMessage);
+        }
+        return;
+      }
+
+      // Regular incoming message (not an ACK)
+      const wsMessage: WebSocketMessage = parsed;
 
       // Normalize to MessageViewModel
       const message: MessageViewModel = {
@@ -145,11 +176,37 @@ export class WebSocketTransport implements MessageTransport {
         display_state: "delivered",
       };
 
+      // Send ACK to backend for received message
+      this._sendAck(wsMessage.id, wsMessage.conversation_id);
+
       if (this.onMessageHandler) {
         this.onMessageHandler(message);
       }
     } catch (error) {
       // Invalid message format - silently ignore per deterministic rules
+      // No content logged or leaked
+    }
+  }
+
+  /**
+   * Send ACK to backend for received message.
+   * 
+   * Per API Contracts (#10): ACK format is JSON {type: "ack", message_id: "...", conversation_id: "..."}
+   */
+  private _sendAck(messageId: string, conversationId: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return; // Can't send ACK if not connected
+    }
+
+    try {
+      const ackMessage = {
+        type: "ack",
+        message_id: messageId,
+        conversation_id: conversationId,
+      };
+      this.ws.send(JSON.stringify(ackMessage));
+    } catch (error) {
+      // Failed to send ACK - silently ignore per deterministic rules
       // No content logged or leaked
     }
   }

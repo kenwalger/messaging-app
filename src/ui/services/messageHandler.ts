@@ -145,14 +145,61 @@ export class MessageHandlerService {
    * 
    * Normalizes, deduplicates, and merges into store.
    * Preserves ordering and state reconciliation.
+   * 
+   * Handles both regular messages and ACK messages:
+   * - Regular messages: Add to store (new message received)
+   * - ACK messages: Update existing message state (delivery confirmation)
+   * 
+   * ACK messages are identified by:
+   * - Having sender_id matching our device_id (ACK is for our own sent message)
+   * - Having state "delivered" or "failed" (delivery confirmation)
+   * - Not having a valid conversation_id (ACKs may have empty/placeholder conversation_id)
    */
   private _handleIncomingMessage(message: MessageViewModel): void {
-    // Add message to store (deduplication happens automatically)
-    const isNew = this.store.addMessage(message);
+    // Check if this is an ACK message (for a message we sent)
+    // ACK messages are sent back to the sender, so sender_id matches our device_id
+    // They indicate delivery status for a message we previously sent
+    const isAck = message.sender_id === this.deviceId && 
+                  (message.state === "delivered" || message.state === "failed") &&
+                  message.message_id &&
+                  // Additional check: ACKs typically don't have payload/content
+                  // We can check if conversation_id is empty or if this looks like an ACK
+                  (!message.conversation_id || message.conversation_id === "");
 
-    if (isNew) {
-      // Notify UI of new message
-      this._notifyUpdate(message.conversation_id);
+    if (isAck) {
+      // This is an ACK for a message we sent
+      // Update the existing message state instead of adding a new message
+      // Find the conversation_id from the existing message in the store
+      const allMessages = this.store.getAllMessages();
+      let conversationId: string | null = null;
+      
+      // Find the conversation_id for this message_id
+      for (const [convId, messages] of Object.entries(allMessages)) {
+        if (messages.some((msg) => msg.message_id === message.message_id)) {
+          conversationId = convId;
+          break;
+        }
+      }
+      
+      // Update message state
+      this.updateMessage(message.message_id, {
+        state: message.state,
+        is_failed: message.state === "failed",
+        display_state: message.state === "failed" ? "failed" : "delivered",
+      });
+      
+      // Notify UI of update if we found the conversation
+      if (conversationId) {
+        this._notifyUpdate(conversationId);
+      }
+    } else {
+      // Regular incoming message - add to store (deduplication happens automatically)
+      const isNew = this.store.addMessage(message);
+
+      if (isNew) {
+        // Notify UI of new message
+        this._notifyUpdate(message.conversation_id);
+      }
     }
   }
 
