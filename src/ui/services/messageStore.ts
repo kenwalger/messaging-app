@@ -160,9 +160,11 @@ export class InMemoryMessageStore implements MessageStore {
       if (shouldUpdate) {
         // Merge state: preserve created_at and sender_id from original (server timestamp is authoritative, first sender prevents spoofing)
         // Update other fields from incoming message
+        // Exclude sender_id and created_at from message spread to preserve original values
+        const { sender_id: _messageSenderId, created_at: _messageCreatedAt, ...messageWithoutPreservedFields } = message;
         conversationMessages.set(messageId, {
           ...existing,
-          ...message,
+          ...messageWithoutPreservedFields,
           // Preserve created_at from original (don't overwrite with newer timestamp)
           // This ensures stable ordering by server timestamp
           created_at: existing.created_at,
