@@ -119,7 +119,8 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
   /**
    * Subscribe to message store updates.
    * 
-   * Sets up callback once and keeps it stable to avoid re-subscriptions.
+   * Sets up callback and re-registers when messageHandler or isReadOnly changes.
+   * isReadOnly must be in dependencies to avoid stale closure when read-only state changes.
    */
   useEffect(() => {
     // Set up callback for message updates
@@ -152,8 +153,7 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
       }
       return prev;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messageHandler]); // Only depend on messageHandler - deriveConversations is stable via useCallback
+  }, [messageHandler, deriveConversations]); // Include deriveConversations to re-register when isReadOnly changes
 
   const selectedMessages = selectedConversationId
     ? messagesByConversation[selectedConversationId] || []

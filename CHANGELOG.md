@@ -8,12 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- PR review feedback fix for MessagingView
-  - Fixed React hook dependency issue causing unnecessary re-subscriptions
-  - Removed deriveConversations and updateFromStore from useEffect dependency array
+- PR review feedback fix for MessagingView (round 2)
+  - Fixed stale closure bug by including deriveConversations in useEffect dependency array
+  - deriveConversations depends on isReadOnly, so callback must be re-registered when isReadOnly changes
+  - Prevents incorrect conversation states (can_send, send_disabled, is_read_only) when read-only state changes
   - Use functional state updates to avoid dependency on state values
-  - Only depend on messageHandler (stable reference) to prevent re-subscriptions
-  - Improved performance by avoiding redundant callback registrations
+  - Re-subscription only occurs when messageHandler or isReadOnly changes (rare events)
 
 ### Added
 - Visible messaging UI with store-connected view
