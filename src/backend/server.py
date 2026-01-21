@@ -668,9 +668,6 @@ async def websocket_messages(
                 # Device might have been registered between check and register
                 # Or provisioning failed - log and continue to check if now active
                 logger.debug(f"Auto-provisioning attempt for {device_id}: {e}")
-            except RuntimeError as e:
-                # Registry lock or state transition error - log and continue to check if now active
-                logger.debug(f"Auto-provisioning runtime error for {device_id}: {e}")
         else:
             # Device exists but not active - try to complete provisioning
             from src.shared.device_identity_types import DeviceIdentityState
@@ -688,9 +685,6 @@ async def websocket_messages(
             except ValueError as e:
                 # State transition validation failed - log and continue to check if now active
                 logger.debug(f"Auto-provisioning completion attempt for {device_id}: {e}")
-            except RuntimeError as e:
-                # Registry lock or state transition error - log and continue to check if now active
-                logger.debug(f"Auto-provisioning completion runtime error for {device_id}: {e}")
         
         # Check again if device is now active (might have been provisioned by another request)
         if not device_registry.is_device_active(device_id):
