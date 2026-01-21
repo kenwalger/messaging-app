@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Controller API endpoints for device provisioning and revocation
+  - POST /api/device/provision: Creates device in Pending state per Identity Provisioning (#11)
+  - POST /api/device/provision/confirm: Transitions Pending → Provisioned per State Machines (#7)
+  - POST /api/device/revoke: Revokes device immediately and irreversibly per Identity Provisioning (#11)
+  - Controller authentication via API key (X-Controller-Key header) per API Contracts (#10)
+  - Controller DTOs and response types (ProvisionDeviceRequest/Response, ConfirmProvisioningRequest/Response, RevokeDeviceRequest/Response)
+  - Comprehensive unit tests (19 test cases) covering:
+    - Valid state transitions
+    - Invalid state transitions
+    - Authorization failures
+    - Idempotent revoke handling
+    - Revocation impact on conversations
+  - Controller API documentation with Mermaid diagrams
+
 ### Fixed
 - PR review feedback fix for MessagingView (round 2)
   - Fixed stale closure bug by including deriveConversations in useEffect dependency array

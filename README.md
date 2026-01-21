@@ -63,9 +63,16 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Visible messaging UI implementation
+**Current Phase:** Controller API endpoints for device provisioning and revocation
 
 **Completed:**
+- Controller API endpoints for device provisioning and revocation
+  - POST /api/device/provision: Creates device in Pending state
+  - POST /api/device/provision/confirm: Transitions Pending → Provisioned
+  - POST /api/device/revoke: Revokes device immediately and irreversibly
+  - Controller authentication via API key (X-Controller-Key header)
+  - Comprehensive unit tests (19 test cases)
+  - Controller API documentation with Mermaid diagrams
 - Visible messaging UI with store-connected view
   - MessagingView component subscribing to message store
   - Conversation list with last message preview
