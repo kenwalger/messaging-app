@@ -78,14 +78,39 @@ To use this UI shell:
 3. Import and use components:
    ```typescript
    import { App } from './src/ui/App';
-   import { mockActiveDeviceState, mockConversations, mockMessages } from './src/ui/fixtures/mockData';
+   import { mockActiveDeviceState, mockConversations, mockMessages, mockMessageApi, mockWebSocketTransport } from './src/ui/fixtures/mockData';
+   import { createMessageTransport } from './src/ui/services/transportFactory';
+   
+   // Create transport (WebSocket preferred, REST polling fallback)
+   const transport = createMessageTransport({
+     wsUrl: "wss://api.example.com/ws",
+     apiUrl: "https://api.example.com",
+     preferredTransport: "websocket",
+   });
    
    <App
      deviceState={mockActiveDeviceState}
      conversations={mockConversations}
      messagesByConversation={mockMessages}
+     messageApi={mockMessageApi}
+     messageTransport={transport}
    />
    ```
+
+## Incoming Message Handling
+
+The UI shell supports incoming messages via:
+
+- **WebSocket Transport** (preferred): Real-time message delivery
+- **REST Polling Transport** (fallback): Polls every 30 seconds
+
+Both transports:
+- Use X-Device-ID for authentication per API Contracts (#10)
+- Handle deduplication automatically
+- Preserve reverse chronological ordering
+- Support reconnection with automatic reconciliation
+
+Messages appear automatically in the UI without page reload.
 
 ## Constraints
 

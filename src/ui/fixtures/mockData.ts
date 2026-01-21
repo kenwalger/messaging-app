@@ -16,6 +16,9 @@ import {
   MessageViewModel,
 } from "../types";
 import { MessageApiService, MockMessageApiService } from "../services/messageApi";
+import { MessageTransport } from "../services/messageTransport";
+import { WebSocketTransport } from "../services/websocketTransport";
+import { PollingTransport } from "../services/pollingTransport";
 
 /**
  * Mock device state for active device.
@@ -157,6 +160,24 @@ export const mockMessages: Record<string, MessageViewModel[]> = {
  * Mock message API service for testing.
  */
 export const mockMessageApi: MessageApiService = new MockMessageApiService();
+
+/**
+ * Mock WebSocket transport for testing.
+ * 
+ * Uses mock WebSocket URL (will not actually connect in tests).
+ */
+export const mockWebSocketTransport: MessageTransport = new WebSocketTransport(
+  "wss://mock-api.example.com/ws"
+);
+
+/**
+ * Mock REST polling transport for testing.
+ * 
+ * Uses mock API URL (will not actually connect in tests).
+ */
+export const mockPollingTransport: MessageTransport = new PollingTransport(
+  "https://mock-api.example.com"
+);
 
 /**
  * Mock data with expired messages for testing expiration behavior.

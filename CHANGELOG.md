@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Incoming message handling and live updates
+  - Transport abstraction layer (WebSocket + REST polling)
+  - WebSocket transport implementation with automatic reconnection
+  - REST polling transport fallback (30-second interval)
+  - Message store with deduplication and ordering
+  - Message handler service coordinating transport and store
+  - State reconciliation (merge without overwriting incorrectly)
+  - Automatic UI updates when new messages arrive
+  - Connection lifecycle handling (connect/disconnect/reconnect)
+  - Reconnection reconciliation (missed messages fetched on reconnect)
+  - Comprehensive unit tests for deduplication and reconnection
+  - Transport factory for creating appropriate transport
+  - No content logged or leaked per deterministic rules
+  - Messages appear automatically without page reload
+  - Preserves reverse chronological ordering
+  - Handles expired message cleanup automatically
+
 ### Fixed
 - PR review feedback fixes for interactive messaging
   - Removed console.error logging in MessageComposer (violates "no content logged or leaked" rule)
