@@ -327,6 +327,38 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Node.js >= 18.0.0 requirement documented
 - [x] Mock fallback still supported for testing (via `MockMessageApiService`)
 
+## Phase 6.1.1: Frontend-Backend Integration ✅
+
+**Status:** Completed
+
+### Integration Services
+- [x] Health check service for backend connectivity verification
+- [x] Device API service for fetching device state from backend
+- [x] Conversation API service for fetching conversation information
+- [x] Message fetch API service for fetching initial messages with pagination
+
+### Data Flow
+- [x] Health check on app startup (development logging only)
+- [x] Device state fetched and derived from backend API responses
+- [x] Messages fetched via `GET /api/message/receive` endpoint
+- [x] Conversations derived from messages and conversation info endpoints
+- [x] Reverse chronological ordering for conversations and messages (newest first)
+- [x] Read-only flags set based on device state
+- [x] WebSocket connection established automatically for real-time updates
+- [x] Graceful fallback to mock data if backend unavailable
+
+### Error Handling
+- [x] All errors normalized via existing adapter logic
+- [x] Neutral error messages (no stack traces or backend details exposed)
+- [x] Silent error handling with automatic retries
+- [x] Network errors handled gracefully
+
+### Documentation
+- [x] README.md updated with frontend-backend integration section
+- [x] Required backend headers documented (`X-Device-ID`, `X-Controller-Key`)
+- [x] Controller setup documented (`CONTROLLER_API_KEYS` environment variable)
+- [x] Expected local dev flow documented (2 terminals)
+
 ## Phase 6.2: UI/UX Implementation
 
 **Status:** Planned
@@ -429,6 +461,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - **Phase 5.9**: ✅ Completed (Incoming Message Handling & Live Updates)
 - **Phase 6**: ✅ Completed (Backend Server Infrastructure)
 - **Phase 6.1**: ✅ Completed (Frontend Development Server)
+- **Phase 6.1.1**: ✅ Completed (Frontend-Backend Integration)
 - **Phase 7**: ✅ Completed (Logging & Observability - Core Services)
 - **Phase 2.5**: ✅ Completed (Controller API Endpoints for Provisioning/Revocation)
 - **Phase 6.2**: Next (UI/UX Implementation)

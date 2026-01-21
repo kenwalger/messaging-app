@@ -290,6 +290,58 @@ The frontend uses the `VITE_API_BASE_URL` environment variable to configure the 
 
 The WebSocket URL is automatically derived from the API base URL (replaces `http` with `ws` and appends `/ws/messages`).
 
+#### Frontend ↔ Backend Integration
+
+The frontend automatically connects to the backend on startup. The integration flow:
+
+1. **Health Check**: On app startup, the frontend calls `GET /health` to verify backend availability (development logging only).
+
+2. **Device State**: Device state is derived by checking if the device can receive messages via `GET /api/message/receive`. If the device can receive messages, it's considered active. If unauthorized (401/403), it's considered revoked.
+
+3. **Message Fetching**: Initial messages are fetched via `GET /api/message/receive` to populate conversations and message history.
+
+4. **Conversation Info**: For each unique conversation ID found in messages, the frontend calls `GET /api/conversation/info` to get conversation details (participants, state, etc.).
+
+5. **WebSocket Connection**: The frontend establishes a WebSocket connection to `/ws/messages` for real-time message delivery. The device ID is passed as a query parameter (`?device_id=<device_id>`).
+
+**Required Backend Headers:**
+- `X-Device-ID`: Required for all API endpoints (device authentication)
+- `X-Controller-Key`: Required for Controller API endpoints (device provisioning/revocation)
+
+**Controller Setup (if applicable):**
+For device provisioning and revocation, you'll need to set the `CONTROLLER_API_KEYS` environment variable:
+
+```bash
+export CONTROLLER_API_KEYS=your-controller-key-1,your-controller-key-2
+```
+
+If not set, the backend defaults to `test-controller-key` for development (with a warning log).
+
+**Expected Local Dev Flow:**
+1. Start backend server in Terminal 1:
+   ```bash
+   source venv/bin/activate
+   uvicorn src.backend.server:app --reload
+   ```
+
+2. Start frontend dev server in Terminal 2:
+   ```bash
+   cd src/ui
+   npm run dev
+   ```
+
+3. The frontend will automatically:
+   - Check backend health on startup
+   - Fetch device state, messages, and conversations
+   - Establish WebSocket connection for real-time updates
+   - Fall back to mock data if backend is unavailable
+
+**Error Handling:**
+- All errors are normalized via existing adapter logic
+- Error messages remain neutral and content-free (per Copy Rules #13)
+- No stack traces or backend details are exposed to users
+- Network errors are handled silently with automatic retries
+
 #### Full Stack Development
 
 For full-stack development, you'll need to run both backend and frontend:
