@@ -95,6 +95,52 @@ describe("InMemoryMessageStore", () => {
     expect(messages[0].state).toBe("delivered"); // Should not be overwritten with "sent"
   });
 
+  it("allows delivered to failed state transition", () => {
+    const now = new Date();
+    const deliveredMessage = createMessage("msg-001", "conv-001", now, "delivered");
+    const failedMessage = createMessage("msg-001", "conv-001", now, "failed"); // Same ID, failed state
+
+    store.addMessage(deliveredMessage);
+    store.addMessage(failedMessage);
+
+    const messages = store.getMessages("conv-001");
+    expect(messages).toHaveLength(1);
+    expect(messages[0].state).toBe("failed"); // Should transition to failed
+  });
+
+  it("allows any state to expired transition", () => {
+    const now = new Date();
+    const sentMessage = createMessage("msg-001", "conv-001", now, "sent");
+    const expiredMessage: MessageViewModel = {
+      ...createMessage("msg-001", "conv-001", now, "expired"),
+      is_expired: true,
+    };
+
+    store.addMessage(sentMessage);
+    store.addMessage(expiredMessage);
+
+    const messages = store.getMessages("conv-001");
+    expect(messages).toHaveLength(1);
+    expect(messages[0].state).toBe("expired"); // Should transition to expired
+    expect(messages[0].is_expired).toBe(true);
+  });
+
+  it("allows delivered to expired transition", () => {
+    const now = new Date();
+    const deliveredMessage = createMessage("msg-001", "conv-001", now, "delivered");
+    const expiredMessage: MessageViewModel = {
+      ...createMessage("msg-001", "conv-001", now, "expired"),
+      is_expired: true,
+    };
+
+    store.addMessage(deliveredMessage);
+    store.addMessage(expiredMessage);
+
+    const messages = store.getMessages("conv-001");
+    expect(messages).toHaveLength(1);
+    expect(messages[0].state).toBe("expired"); // Should transition to expired
+  });
+
   it("updates pending state to delivered state", () => {
     const now = new Date();
     const pendingMessage = createMessage("msg-001", "conv-001", now, "sent");

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- PR review feedback fixes for incoming message handling
+  - Fixed state reconciliation logic to handle failed and expired state transitions correctly
+  - Fixed React dependency array stale closure risk using ref for onMessagesUpdate callback
+  - Fixed race condition in selectedMessages computation during unmount
+  - Added comprehensive tests for delivered → failed and any → expired transitions
+
 ### Added
 - Incoming message handling and live updates
   - Transport abstraction layer (WebSocket + REST polling)

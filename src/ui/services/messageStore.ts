@@ -122,12 +122,22 @@ export class InMemoryMessageStore implements MessageStore {
       // Update existing message - merge state without overwriting incorrectly
       const existing = conversationMessages.get(messageId)!;
       
-      // State reconciliation: only update if new state is more advanced
-      // Prevents overwriting delivered state with pending state
+      // State reconciliation: handle all valid state transitions
       // State progression: sent → delivered/failed (one-way)
+      // delivered → failed (can happen if delivery later fails)
+      // any → expired (can happen at any time if expiration timestamp passes)
+      // Prevents overwriting delivered/failed with sent (backwards transition)
       const shouldUpdate =
-        (existing.state === "sent" && message.state !== "sent") || // Existing is pending, new is delivered/failed
-        (existing.state === "sent" && message.state === "sent"); // Both pending, update with latest
+        // sent → delivered/failed/expired (forward transition)
+        (existing.state === "sent" && message.state !== "sent") ||
+        // sent → sent (both pending, update with latest)
+        (existing.state === "sent" && message.state === "sent") ||
+        // delivered → failed (delivery failure after initial success)
+        (existing.state === "delivered" && message.state === "failed") ||
+        // any → expired (expiration can happen at any time)
+        message.state === "expired" ||
+        // expired → expired (update expiration metadata)
+        (existing.state === "expired" && message.state === "expired");
 
       if (shouldUpdate) {
         conversationMessages.set(messageId, {

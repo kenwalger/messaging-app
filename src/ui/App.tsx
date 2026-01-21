@@ -82,6 +82,13 @@ export const App: React.FC<AppProps> = ({
 
   // Message handler service for incoming messages
   const messageHandlerRef = useRef<MessageHandlerService | null>(null);
+  // Use ref for onMessagesUpdate to avoid stale closure
+  const onMessagesUpdateRef = useRef(onMessagesUpdate);
+  
+  // Update ref when callback changes
+  useEffect(() => {
+    onMessagesUpdateRef.current = onMessagesUpdate;
+  }, [onMessagesUpdate]);
 
   /**
    * Initialize message handler service for incoming messages.
@@ -94,14 +101,15 @@ export const App: React.FC<AppProps> = ({
     const messageHandler = new MessageHandlerService(messageTransport, deviceState.device_id);
 
     // Set callback for message updates
+    // Use ref to avoid stale closure
     messageHandler.setOnMessagesUpdate((conversationId, messages) => {
       // Update local state to trigger re-render
       setMessagesByConversation((prev) => {
         const next = { ...prev, [conversationId]: messages };
         
-        // Notify parent of update
-        if (onMessagesUpdate) {
-          onMessagesUpdate(conversationId, messages);
+        // Notify parent of update using ref to avoid stale closure
+        if (onMessagesUpdateRef.current) {
+          onMessagesUpdateRef.current(conversationId, messages);
         }
         
         return next;
@@ -130,8 +138,7 @@ export const App: React.FC<AppProps> = ({
         // Disconnect errors handled silently
       });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messageTransport, deviceState.device_id]); // initialMessagesByConversation and onMessagesUpdate intentionally excluded
+  }, [messageTransport, deviceState.device_id, initialMessagesByConversation]); // onMessagesUpdate handled via ref
 
   /**
    * Periodic cleanup of expired messages.
@@ -149,10 +156,21 @@ export const App: React.FC<AppProps> = ({
   }, []);
 
   // Get messages from handler store (which includes both sent and received messages)
+  // Handle race condition: check if handler exists and component is still mounted
   const selectedMessages = selectedConversationId
-    ? (messageHandlerRef.current
-        ? messageHandlerRef.current.getMessages(selectedConversationId)
-        : messagesByConversation[selectedConversationId] || [])
+    ? (() => {
+        const handler = messageHandlerRef.current;
+        if (handler) {
+          try {
+            return handler.getMessages(selectedConversationId);
+          } catch {
+            // Handler may be disconnecting, fall back to local state
+            return messagesByConversation[selectedConversationId] || [];
+          }
+        }
+        // Handler not initialized yet, use local state
+        return messagesByConversation[selectedConversationId] || [];
+      })()
     : [];
 
   const selectedConversation = selectedConversationId
