@@ -20,6 +20,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Configuration files: `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, `postcss.config.js`
   - `package.json` with all required dependencies (Vite, React, TypeScript, Tailwind)
   - Node.js >= 18.0.0 requirement documented
+- Frontend-backend integration
+  - Health check service (`src/ui/services/healthCheck.ts`) for backend connectivity verification
+  - Device API service (`src/ui/services/deviceApi.ts`) for fetching device state from backend
+  - Conversation API service (`src/ui/services/conversationApi.ts`) for fetching conversation information
+  - Message fetch API service (`src/ui/services/messageFetchApi.ts`) for fetching initial messages
+  - Updated `main.tsx` to fetch real data from backend on app startup
+  - Automatic health check on app initialization (development logging only)
+  - Device state derivation from backend API responses
+  - Conversation list derived from messages and conversation info endpoints
+  - Message fetching with pagination support
+  - Reverse chronological ordering for conversations and messages (newest first)
+  - Read-only flags set based on device state
+  - WebSocket connection established automatically for real-time message delivery
+  - Graceful fallback to mock data if backend is unavailable
+  - Error handling with neutral messages (no stack traces or backend details exposed)
 
 ### Fixed
 - Minimal backend HTTP & WebSocket server for local development
