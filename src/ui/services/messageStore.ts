@@ -166,6 +166,8 @@ export class InMemoryMessageStore implements MessageStore {
           sender_id: existing.sender_id,
           // This ensures stable ordering by server timestamp
           created_at: existing.created_at,
+          // This prevents sender spoofing via duplicate message IDs
+          sender_id: existing.sender_id,
         });
       }
     }

@@ -14,4 +14,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Extend vite config
+  server: {
+    port: 5173,
+    host: true,
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: true,
+  },
 })

@@ -196,7 +196,9 @@ describe("MessagingView", () => {
 
     await waitFor(() => {
       // Should show preview with sender ID
-      expect(screen.getByText(/device-002/)).toBeInTheDocument();
+      // Use getAllByText since device-002 might appear multiple times
+      const deviceElements = screen.getAllByText(/device-002/);
+      expect(deviceElements.length).toBeGreaterThanOrEqual(1);
     });
   });
 
