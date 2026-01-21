@@ -211,3 +211,11 @@ project_structure.txt
 
 # Vite build tool
 .vite/
+dist/
+
+# Node.js / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
