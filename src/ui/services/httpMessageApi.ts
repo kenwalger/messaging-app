@@ -57,10 +57,16 @@ export class HttpMessageApiService implements MessageApiService {
       throw new Error('Invalid message parameters')
     }
 
+    // Validate payload is not empty after trimming
+    const trimmedContent = content.trim()
+    if (!trimmedContent) {
+      throw new Error('Message content cannot be empty')
+    }
+
     // Prepare request per API Contracts (#10), Section 3.3
     const requestBody = {
       recipients: [], // Backend will determine recipients from conversation
-      payload: content, // In production, this would be pre-encrypted
+      payload: trimmedContent, // In production, this would be pre-encrypted
       expiration: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
       conversation_id: conversationId,
     }
