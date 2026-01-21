@@ -77,6 +77,17 @@ export interface MessageStore {
    * Clear all messages.
    */
   clear(): void;
+
+  /**
+   * Bulk add messages (for reconnection reconciliation).
+   * 
+   * Efficiently adds multiple messages while maintaining deduplication and ordering.
+   * Used when reconciling missed messages after reconnection.
+   * 
+   * @param messages Array of messages to add
+   * @returns Number of new messages added (excluding duplicates)
+   */
+  addMessages(messages: MessageViewModel[]): number;
 }
 
 /**
@@ -145,10 +156,13 @@ export class InMemoryMessageStore implements MessageStore {
         (existing.state === "expired" && message.state === "expired");
 
       if (shouldUpdate) {
+        // Merge state: preserve created_at from original (server timestamp is authoritative)
+        // Update other fields from incoming message
         conversationMessages.set(messageId, {
           ...existing,
           ...message,
           // Preserve created_at from original (don't overwrite with newer timestamp)
+          // This ensures stable ordering by server timestamp
           created_at: existing.created_at,
         });
       }
@@ -274,5 +288,24 @@ export class InMemoryMessageStore implements MessageStore {
    */
   clear(): void {
     this.messagesByConversation.clear();
+  }
+
+  /**
+   * Bulk add messages (for reconnection reconciliation).
+   * 
+   * Efficiently adds multiple messages while maintaining deduplication and ordering.
+   * Used when reconciling missed messages after reconnection.
+   * 
+   * @param messages Array of messages to add
+   * @returns Number of new messages added (excluding duplicates)
+   */
+  addMessages(messages: MessageViewModel[]): number {
+    let newCount = 0;
+    for (const message of messages) {
+      if (this.addMessage(message)) {
+        newCount++;
+      }
+    }
+    return newCount;
   }
 }

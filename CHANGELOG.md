@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Hardened message store with comprehensive TypeScript tests
+  - Enhanced message store with bulk add method for reconnection reconciliation
+  - Comprehensive test suite covering:
+    * Message deduplication logic (by ID, across senders, out-of-order)
+    * Ordering with interleaved incoming and outgoing messages
+    * Reconnection reconciliation (missed messages, duplicates, overlapping timestamps)
+    * Delivery state transitions (prevent regression, allow valid transitions)
+    * Transport switching behavior (WebSocket ↔ REST polling, no duplicates, no dropped messages)
+    * Stable ordering guarantees (server timestamp-based, not insertion order)
+  - All tests use deterministic timestamps and IDs
+  - No DOM rendering required (pure unit tests)
+  - Tests run fast and deterministically
+
 ### Fixed
 - PR review feedback fixes for incoming message handling
   - Fixed state reconciliation logic to handle all state transitions correctly:

@@ -63,9 +63,14 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Incoming message handling and live updates
+**Current Phase:** Message store hardening and comprehensive testing
 
 **Completed:**
+- Message store hardening with comprehensive TypeScript tests
+  - Enhanced deduplication and ordering guarantees
+  - Reconnection reconciliation support
+  - Transport switching safety
+  - Comprehensive test coverage (30+ test cases)
 - Incoming message handling and live updates
   - Transport abstraction (WebSocket + REST polling)
   - Message deduplication and ordering
