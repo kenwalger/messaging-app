@@ -21,8 +21,10 @@ TODO: Encryption and auth hardening
 import asyncio
 import json
 import logging
+import os
+from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 from uuid import UUID, uuid4
 
 from fastapi import (
@@ -57,11 +59,84 @@ from src.shared.message_types import utc_now
 # Configure logging per Logging & Observability (#14)
 logger = logging.getLogger(__name__)
 
-# Create FastAPI application
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """
+    Application lifespan context manager per FastAPI best practices.
+    
+    Replaces deprecated @app.on_event("startup") and @app.on_event("shutdown") decorators.
+    Handles service initialization on startup and cleanup on shutdown.
+    """
+    global _device_registry, _conversation_registry, _identity_enforcement
+    global _logging_service, _controller_auth, _controller_api
+    global _conversation_service, _message_relay, _websocket_manager
+    
+    # Startup: Initialize services
+    logger.info("Initializing Abiqua backend services...")
+    
+    # Initialize core services
+    _device_registry = DeviceRegistry()
+    _conversation_registry = ConversationRegistry(_device_registry)
+    _identity_enforcement = IdentityEnforcementService(_device_registry)
+    _logging_service = LoggingService()
+    _websocket_manager = FastAPIWebSocketManager()
+    
+    # Initialize controller services
+    # TODO: Replace with proper configuration management
+    # Load controller API keys from environment variable
+    controller_api_keys = os.getenv("CONTROLLER_API_KEYS", "test-controller-key").split(",")
+    # Remove empty strings and strip whitespace
+    controller_api_keys = [key.strip() for key in controller_api_keys if key.strip()]
+    # Fallback to test key for development if no keys provided
+    if not controller_api_keys:
+        logger.warning("No CONTROLLER_API_KEYS environment variable set, using test key for development")
+        controller_api_keys = ["test-controller-key"]
+    
+    _controller_auth = ControllerAuthService(valid_api_keys=controller_api_keys)
+    _controller_api = ControllerAPIService(
+        device_registry=_device_registry,
+        conversation_registry=_conversation_registry,
+        identity_enforcement=_identity_enforcement,
+        logging_service=_logging_service,
+        controller_auth=_controller_auth,
+    )
+    
+    # Initialize conversation service
+    _conversation_service = ConversationService(
+        conversation_registry=_conversation_registry,
+        device_registry=_device_registry,
+        log_service=_logging_service,
+    )
+    
+    # Initialize message relay service
+    _message_relay = MessageRelayService(
+        device_registry=_device_registry,
+        websocket_manager=_websocket_manager,
+        log_service=_logging_service,
+    )
+    
+    # Start WebSocket background task for message delivery
+    event_loop = asyncio.get_event_loop()
+    _websocket_manager.start_background_task(event_loop)
+    
+    logger.info("Abiqua backend services initialized")
+    
+    # Yield control to application
+    yield
+    
+    # Shutdown: Clean up services
+    if _websocket_manager:
+        _websocket_manager.stop_background_task()
+        logger.info("Abiqua backend services shut down")
+
+
+# Create FastAPI application with lifespan context manager
 app = FastAPI(
     title="Abiqua Asset Management API",
     description="Secure messaging system for high-risk environments",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Global service instances (initialized in startup)
@@ -154,67 +229,6 @@ def get_device_id(device_id: Optional[str] = Header(None, alias=HEADER_DEVICE_ID
     return device_id
 
 
-@app.on_event("startup")
-async def startup() -> None:
-    """
-    Initialize services on application startup.
-    
-    Creates all service instances with explicit dependency injection.
-    """
-    import os
-    
-    global _device_registry, _conversation_registry, _identity_enforcement
-    global _logging_service, _controller_auth, _controller_api
-    global _conversation_service, _message_relay, _websocket_manager
-    
-    logger.info("Initializing Abiqua backend services...")
-    
-    # Initialize core services
-    _device_registry = DeviceRegistry()
-    _conversation_registry = ConversationRegistry(_device_registry)
-    _identity_enforcement = IdentityEnforcementService(_device_registry)
-    _logging_service = LoggingService()
-    _websocket_manager = FastAPIWebSocketManager()
-    
-    # Initialize controller services
-    # TODO: Replace with proper configuration management
-    # Load controller API keys from environment variable
-    controller_api_keys = os.getenv("CONTROLLER_API_KEYS", "test-controller-key").split(",")
-    # Remove empty strings and strip whitespace
-    controller_api_keys = [key.strip() for key in controller_api_keys if key.strip()]
-    # Fallback to test key for development if no keys provided
-    if not controller_api_keys:
-        logger.warning("No CONTROLLER_API_KEYS environment variable set, using test key for development")
-        controller_api_keys = ["test-controller-key"]
-    
-    _controller_auth = ControllerAuthService(valid_api_keys=controller_api_keys)
-    _controller_api = ControllerAPIService(
-        device_registry=_device_registry,
-        conversation_registry=_conversation_registry,
-        identity_enforcement=_identity_enforcement,
-        logging_service=_logging_service,
-        controller_auth=_controller_auth,
-    )
-    
-    # Initialize conversation service
-    _conversation_service = ConversationService(
-        conversation_registry=_conversation_registry,
-        device_registry=_device_registry,
-        log_service=_logging_service,
-    )
-    
-    # Initialize message relay service
-    _message_relay = MessageRelayService(
-        device_registry=_device_registry,
-        websocket_manager=_websocket_manager,
-        log_service=_logging_service,
-    )
-    
-    # Start WebSocket background task for message delivery
-    event_loop = asyncio.get_event_loop()
-    _websocket_manager.start_background_task(event_loop)
-    
-    logger.info("Abiqua backend services initialized")
 
 
 # ============================================================================
@@ -642,18 +656,6 @@ def create_app() -> FastAPI:
         Configured FastAPI application instance.
     """
     return app
-
-
-@app.on_event("shutdown")
-async def shutdown() -> None:
-    """
-    Clean up services on application shutdown.
-    """
-    global _websocket_manager
-    
-    if _websocket_manager:
-        _websocket_manager.stop_background_task()
-        logger.info("Abiqua backend services shut down")
 
 
 if __name__ == "__main__":
