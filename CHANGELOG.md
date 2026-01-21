@@ -53,6 +53,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Connection status tracking: MessageHandlerService exposes connection status changes via callback for UI indicators
   - Reactive state updates: Message state transitions (PENDING → DELIVERED) are visible immediately without refresh
   - Code quality: Fixed duplicate sender_id assignment in messageStore.ts by explicitly excluding preserved fields from message spread
+- Local development connectivity (CORS and WebSocket configuration)
+  - CORS middleware enabled for local development (allows `http://localhost:5173` and `http://127.0.0.1:5173`)
+  - Environment-aware CORS configuration (permissive in dev, strict in production)
+  - REST API endpoints include CORS headers (health check, message receive, etc.)
+  - WebSocket endpoint accepts connections from browser origins (device_id via query parameter)
+  - All required headers allowed: `Content-Type`, `Authorization`, `X-Device-ID`, `X-Controller-Key`
+  - Methods allowed: `GET`, `POST`, `OPTIONS` (CORS preflight support)
+  - Device auto-provisioning in development mode (devices automatically registered, provisioned, and activated on WebSocket connection)
+  - Production mode requires manual device provisioning via Controller API (strict security)
 
 ### Fixed
 - Minimal backend HTTP & WebSocket server for local development

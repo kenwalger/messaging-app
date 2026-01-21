@@ -402,6 +402,24 @@ export CONTROLLER_API_KEYS=your-controller-key-1,your-controller-key-2
 
 If not set, the backend defaults to `test-controller-key` for development (with a warning log).
 
+**CORS Configuration:**
+The backend automatically enables CORS for local development to allow the frontend (running on `http://localhost:5173` or `http://127.0.0.1:5173`) to make REST API calls and establish WebSocket connections.
+
+- **Development Mode (Default)**: CORS is enabled with permissive settings:
+  - Allowed origins: `http://localhost:5173`, `http://127.0.0.1:5173`
+  - Allowed methods: `GET`, `POST`, `OPTIONS`
+  - Allowed headers: `Content-Type`, `Authorization`, `X-Device-ID`, `X-Controller-Key`
+  - Credentials: `false` (not required for local development)
+- **Production Mode**: Set `ENVIRONMENT=production` to disable CORS (strict security)
+  - CORS middleware is not added in production mode
+  - Cross-origin requests will be rejected (use reverse proxy for production)
+
+**Device Auto-Provisioning (Development Mode):**
+In development mode, devices are automatically provisioned when they connect via WebSocket. This eliminates the need to manually provision devices via the Controller API for local development.
+
+- **Development Mode (Default)**: Devices are auto-registered, provisioned, and activated when connecting via WebSocket
+- **Production Mode**: Set `ENVIRONMENT=production` to disable auto-provisioning (devices must be provisioned via Controller API first)
+
 **Expected Local Dev Flow:**
 1. Start backend server in Terminal 1:
    ```bash
@@ -416,9 +434,10 @@ If not set, the backend defaults to `test-controller-key` for development (with 
    ```
 
 3. The frontend will automatically:
-   - Check backend health on startup
-   - Fetch device state, messages, and conversations
-   - Establish WebSocket connection for real-time updates
+   - Check backend health on startup (CORS headers included)
+   - Fetch device state, messages, and conversations (CORS preflight handled)
+   - Establish WebSocket connection for real-time updates (device_id via query param)
+   - **Auto-provision device** if not already provisioned (development mode only)
    - Fall back to mock data if backend is unavailable
 
 **Error Handling:**
