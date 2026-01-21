@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Controller API state transition error handling
+  - Fixed revoke_device() to return 409 Conflict for invalid state transitions instead of 500 Backend Failure
+  - Distinguishes between client errors (invalid state) and server errors (unexpected failures)
+  - Updated test expectations to match correct error semantics
+
 ### Added
 - Controller API endpoints for device provisioning and revocation
   - POST /api/device/provision: Creates device in Pending state per Identity Provisioning (#11)
