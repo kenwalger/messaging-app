@@ -117,27 +117,13 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
   }, [messageHandler, isReadOnly]);
 
   /**
-   * Update conversations and messages from store.
-   */
-  const updateFromStore = useCallback(() => {
-    const derivedConversations = deriveConversations();
-    setConversations(derivedConversations);
-
-    // Update messages for all conversations
-    const allMessages = messageHandler.getAllMessages();
-    setMessagesByConversation(allMessages);
-
-    // Auto-select first conversation if none selected
-    if (!selectedConversationId && derivedConversations.length > 0) {
-      setSelectedConversationId(derivedConversations[0].conversation_id);
-    }
-  }, [messageHandler, deriveConversations, selectedConversationId]);
-
-  /**
    * Subscribe to message store updates.
+   * 
+   * Sets up callback once and keeps it stable to avoid re-subscriptions.
    */
   useEffect(() => {
     // Set up callback for message updates
+    // Use functional state updates to avoid dependency on state values
     messageHandler.setOnMessagesUpdate((conversationId, messages) => {
       // Update messages for this conversation
       setMessagesByConversation((prev) => ({
@@ -146,13 +132,28 @@ export const MessagingView: React.FC<MessagingViewProps> = ({
       }));
 
       // Re-derive conversations (last message timestamp may have changed)
+      // Call deriveConversations directly (it's stable via useCallback)
       const derivedConversations = deriveConversations();
       setConversations(derivedConversations);
     });
 
     // Initial load from store
-    updateFromStore();
-  }, [messageHandler, deriveConversations, updateFromStore]);
+    const derivedConversations = deriveConversations();
+    setConversations(derivedConversations);
+
+    // Update messages for all conversations
+    const allMessages = messageHandler.getAllMessages();
+    setMessagesByConversation(allMessages);
+
+    // Auto-select first conversation if none selected
+    setSelectedConversationId((prev) => {
+      if (!prev && derivedConversations.length > 0) {
+        return derivedConversations[0].conversation_id;
+      }
+      return prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messageHandler]); // Only depend on messageHandler - deriveConversations is stable via useCallback
 
   const selectedMessages = selectedConversationId
     ? messagesByConversation[selectedConversationId] || []
