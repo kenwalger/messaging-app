@@ -90,6 +90,11 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                 <div className="text-sm font-medium text-gray-900 mb-1">
                   {conversation.display_name}
                 </div>
+                {conversation.last_message_preview && (
+                  <div className="text-xs text-gray-600 mb-1 truncate">
+                    {conversation.last_message_preview}
+                  </div>
+                )}
                 <div className="text-xs text-gray-500">
                   {formatTimestamp(conversation.last_message_at)}
                 </div>

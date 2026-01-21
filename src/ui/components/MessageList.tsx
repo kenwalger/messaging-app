@@ -61,8 +61,10 @@ export const MessageList: React.FC<MessageListProps> = ({
     );
   }
 
+  // Messages are expected to be in chronological order (oldest first) for display
+  // Display in chronological order (oldest at top, newest at bottom)
   return (
-    <div className="flex flex-col-reverse">
+    <div className="flex flex-col">
       {visibleMessages.map((message) => (
         <MessageRow
           key={message.message_id}
