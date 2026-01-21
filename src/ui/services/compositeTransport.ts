@@ -84,8 +84,10 @@ export class CompositeTransport implements MessageTransport {
     this.activeTransport = "websocket";
     await this.wsTransport.connect(deviceId, wrappedMessageHandler, wrappedStatusHandler);
 
-    // Schedule fallback check after 15s if WebSocket not connected
-    this._scheduleFallbackCheck();
+    // Schedule fallback check after 15s only if WebSocket not connected immediately
+    if (!this.wsTransport.isConnected()) {
+      this._scheduleFallbackCheck();
+    }
   }
 
   /**
@@ -94,14 +96,19 @@ export class CompositeTransport implements MessageTransport {
    * Manages automatic switching between WebSocket and REST polling.
    */
   private _handleTransportStatusChange(status: ConnectionStatus): void {
-    if (this.activeTransport === "websocket") {
-      if (status === "connected") {
-        // WebSocket connected - stop REST polling if active
-        this._stopPollingFallback();
-        this._updateStatus("connected");
-      } else if (status === "disconnected" || status === "reconnecting") {
-        // WebSocket disconnected - schedule REST fallback
-        this._scheduleFallbackCheck();
+    // Check WebSocket connection status directly, not just activeTransport
+    // This handles the case where WebSocket reconnects while polling is active
+    if (status === "connected" && this.wsTransport.isConnected()) {
+      // WebSocket connected - stop REST polling if active and switch back
+      this._stopPollingFallback();
+      this._updateStatus("connected");
+    } else if (this.activeTransport === "websocket") {
+      // Only handle WebSocket status changes when WebSocket is the active transport
+      if (status === "disconnected" || status === "reconnecting") {
+        // WebSocket disconnected - schedule REST fallback (only if not already scheduled)
+        if (!this.fallbackTimer) {
+          this._scheduleFallbackCheck();
+        }
         this._updateStatus(status);
       } else {
         this._updateStatus(status);
@@ -116,16 +123,21 @@ export class CompositeTransport implements MessageTransport {
    * Schedule REST polling fallback check.
    * 
    * After 15s, if WebSocket is still not connected, start REST polling.
+   * 
+   * Note: This timer should only be scheduled once per disconnect event.
+   * It should not be reset on each reconnection attempt to ensure fallback
+   * activates after 15s total disconnect time.
    */
   private _scheduleFallbackCheck(): void {
-    // Clear existing timer
+    // Only schedule if timer not already set (prevent reset on reconnection attempts)
     if (this.fallbackTimer) {
-      clearTimeout(this.fallbackTimer);
+      return; // Timer already scheduled, don't reset it
     }
 
     // Schedule fallback check after 15s
     this.fallbackTimer = setTimeout(() => {
       this._checkAndStartFallback();
+      this.fallbackTimer = null; // Clear timer reference after execution
     }, this.FALLBACK_TIMEOUT_MS);
   }
 
