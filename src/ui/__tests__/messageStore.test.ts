@@ -141,6 +141,40 @@ describe("InMemoryMessageStore", () => {
     expect(messages[0].state).toBe("expired"); // Should transition to expired
   });
 
+  it("allows delivered to delivered transition for metadata updates", () => {
+    const now = new Date();
+    const deliveredMessage1 = createMessage("msg-001", "conv-001", now, "delivered");
+    const deliveredMessage2: MessageViewModel = {
+      ...createMessage("msg-001", "conv-001", now, "delivered"),
+      expires_at: new Date(now.getTime() + 86400000).toISOString(), // Different expiration
+    };
+
+    store.addMessage(deliveredMessage1);
+    store.addMessage(deliveredMessage2);
+
+    const messages = store.getMessages("conv-001");
+    expect(messages).toHaveLength(1);
+    expect(messages[0].state).toBe("delivered"); // State unchanged
+    expect(messages[0].expires_at).toBe(deliveredMessage2.expires_at); // Metadata updated
+  });
+
+  it("allows failed to failed transition for metadata updates", () => {
+    const now = new Date();
+    const failedMessage1 = createMessage("msg-001", "conv-001", now, "failed");
+    const failedMessage2: MessageViewModel = {
+      ...createMessage("msg-001", "conv-001", now, "failed"),
+      expires_at: new Date(now.getTime() + 86400000).toISOString(), // Different expiration
+    };
+
+    store.addMessage(failedMessage1);
+    store.addMessage(failedMessage2);
+
+    const messages = store.getMessages("conv-001");
+    expect(messages).toHaveLength(1);
+    expect(messages[0].state).toBe("failed"); // State unchanged
+    expect(messages[0].expires_at).toBe(failedMessage2.expires_at); // Metadata updated
+  });
+
   it("updates pending state to delivered state", () => {
     const now = new Date();
     const pendingMessage = createMessage("msg-001", "conv-001", now, "sent");
