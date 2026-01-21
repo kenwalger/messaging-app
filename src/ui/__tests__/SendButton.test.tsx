@@ -12,20 +12,21 @@
  * - Click handling
  */
 
+import { describe, it, expect, vi } from 'vitest'
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { SendButton } from "../components/SendButton";
 
 describe("SendButton", () => {
   it("renders send button correctly", () => {
-    const handleClick = jest.fn();
+    const handleClick = vi.fn();
     render(<SendButton disabled={false} onClick={handleClick} />);
 
     expect(screen.getByText("Send")).toBeInTheDocument();
   });
 
   it("disables button when disabled prop is true", () => {
-    const handleClick = jest.fn();
+    const handleClick = vi.fn();
     render(<SendButton disabled={true} onClick={handleClick} />);
 
     const button = screen.getByText("Send");
@@ -34,7 +35,7 @@ describe("SendButton", () => {
   });
 
   it("disables button when sending", () => {
-    const handleClick = jest.fn();
+    const handleClick = vi.fn();
     render(<SendButton disabled={false} isSending={true} onClick={handleClick} />);
 
     const button = screen.getByText("Sending...");
@@ -43,14 +44,14 @@ describe("SendButton", () => {
   });
 
   it("shows sending state text", () => {
-    const handleClick = jest.fn();
+    const handleClick = vi.fn();
     render(<SendButton disabled={false} isSending={true} onClick={handleClick} />);
 
     expect(screen.getByText("Sending...")).toBeInTheDocument();
   });
 
   it("calls onClick when clicked and not disabled", () => {
-    const handleClick = jest.fn();
+    const handleClick = vi.fn();
     render(<SendButton disabled={false} onClick={handleClick} />);
 
     const button = screen.getByText("Send");
@@ -60,7 +61,7 @@ describe("SendButton", () => {
   });
 
   it("does not call onClick when disabled", () => {
-    const handleClick = jest.fn();
+    const handleClick = vi.fn();
     render(<SendButton disabled={true} onClick={handleClick} />);
 
     const button = screen.getByText("Send");
@@ -70,7 +71,7 @@ describe("SendButton", () => {
   });
 
   it("does not call onClick when sending", () => {
-    const handleClick = jest.fn();
+    const handleClick = vi.fn();
     render(<SendButton disabled={false} isSending={true} onClick={handleClick} />);
 
     const button = screen.getByText("Sending...");

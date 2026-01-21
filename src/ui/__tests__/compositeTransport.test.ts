@@ -14,6 +14,7 @@
  * - Timer reset prevention
  */
 
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { CompositeTransport } from "../services/compositeTransport";
 import { MessageViewModel } from "../types";
 
@@ -23,11 +24,11 @@ describe("CompositeTransport", () => {
   const deviceId = "test-device-001";
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it("should create composite transport with both WebSocket and polling", () => {
@@ -38,8 +39,8 @@ describe("CompositeTransport", () => {
 
   it("should forward messages from WebSocket transport", async () => {
     const transport = new CompositeTransport(wsUrl, apiUrl);
-    const onMessage = jest.fn();
-    const onStatusChange = jest.fn();
+    const onMessage = vi.fn();
+    const onStatusChange = vi.fn();
 
     await transport.connect(deviceId, onMessage, onStatusChange);
 
@@ -69,15 +70,15 @@ describe("CompositeTransport", () => {
 
   it("should activate REST polling fallback after 15s WebSocket disconnect", async () => {
     const transport = new CompositeTransport(wsUrl, apiUrl);
-    const onMessage = jest.fn();
-    const onStatusChange = jest.fn();
+    const onMessage = vi.fn();
+    const onStatusChange = vi.fn();
 
     await transport.connect(deviceId, onMessage, onStatusChange);
 
     // Simulate WebSocket disconnect
     const wsTransport = (transport as any).wsTransport;
     // Mock WebSocket as disconnected
-    jest.spyOn(wsTransport, "isConnected").mockReturnValue(false);
+    vi.spyOn(wsTransport, "isConnected").mockReturnValue(false);
 
     // Trigger disconnect status
     const statusHandler = (wsTransport as any).onStatusChangeHandler;
@@ -86,7 +87,7 @@ describe("CompositeTransport", () => {
     }
 
     // Fast-forward 15 seconds
-    jest.advanceTimersByTime(15000);
+    vi.advanceTimersByTime(15000);
 
     // Wait for async operations
     await Promise.resolve();
@@ -101,8 +102,8 @@ describe("CompositeTransport", () => {
 
   it("should stop REST polling when WebSocket reconnects", async () => {
     const transport = new CompositeTransport(wsUrl, apiUrl);
-    const onMessage = jest.fn();
-    const onStatusChange = jest.fn();
+    const onMessage = vi.fn();
+    const onStatusChange = vi.fn();
 
     await transport.connect(deviceId, onMessage, onStatusChange);
 
@@ -110,7 +111,7 @@ describe("CompositeTransport", () => {
     const pollingTransport = (transport as any).pollingTransport;
 
     // Mock WebSocket as disconnected initially
-    jest.spyOn(wsTransport, "isConnected").mockReturnValue(false);
+    vi.spyOn(wsTransport, "isConnected").mockReturnValue(false);
 
     // Trigger disconnect to start fallback timer
     const statusHandler = (wsTransport as any).onStatusChangeHandler;
@@ -119,15 +120,15 @@ describe("CompositeTransport", () => {
     }
 
     // Fast-forward 15 seconds to activate fallback
-    jest.advanceTimersByTime(15000);
+    vi.advanceTimersByTime(15000);
     await Promise.resolve();
 
     // Verify polling is active
     expect((transport as any).activeTransport).toBe("polling");
 
     // Mock WebSocket reconnection
-    jest.spyOn(wsTransport, "isConnected").mockReturnValue(true);
-    jest.spyOn(pollingTransport, "disconnect").mockResolvedValue(undefined);
+    vi.spyOn(wsTransport, "isConnected").mockReturnValue(true);
+    vi.spyOn(pollingTransport, "disconnect").mockResolvedValue(undefined);
 
     // Trigger WebSocket connected status
     if (statusHandler) {
@@ -145,13 +146,13 @@ describe("CompositeTransport", () => {
 
   it("should not reset fallback timer on reconnection attempts", async () => {
     const transport = new CompositeTransport(wsUrl, apiUrl);
-    const onMessage = jest.fn();
-    const onStatusChange = jest.fn();
+    const onMessage = vi.fn();
+    const onStatusChange = vi.fn();
 
     await transport.connect(deviceId, onMessage, onStatusChange);
 
     const wsTransport = (transport as any).wsTransport;
-    jest.spyOn(wsTransport, "isConnected").mockReturnValue(false);
+    vi.spyOn(wsTransport, "isConnected").mockReturnValue(false);
 
     // Trigger disconnect to start fallback timer
     const statusHandler = (wsTransport as any).onStatusChangeHandler;
@@ -176,12 +177,12 @@ describe("CompositeTransport", () => {
 
   it("should not schedule fallback timer if WebSocket connects immediately", async () => {
     const transport = new CompositeTransport(wsUrl, apiUrl);
-    const onMessage = jest.fn();
-    const onStatusChange = jest.fn();
+    const onMessage = vi.fn();
+    const onStatusChange = vi.fn();
 
     const wsTransport = (transport as any).wsTransport;
     // Mock WebSocket as connected immediately
-    jest.spyOn(wsTransport, "isConnected").mockReturnValue(true);
+    vi.spyOn(wsTransport, "isConnected").mockReturnValue(true);
 
     await transport.connect(deviceId, onMessage, onStatusChange);
 
@@ -193,21 +194,21 @@ describe("CompositeTransport", () => {
 
   it("should handle messages from REST polling transport", async () => {
     const transport = new CompositeTransport(wsUrl, apiUrl);
-    const onMessage = jest.fn();
-    const onStatusChange = jest.fn();
+    const onMessage = vi.fn();
+    const onStatusChange = vi.fn();
 
     await transport.connect(deviceId, onMessage, onStatusChange);
 
     // Activate polling fallback
     const wsTransport = (transport as any).wsTransport;
-    jest.spyOn(wsTransport, "isConnected").mockReturnValue(false);
+    vi.spyOn(wsTransport, "isConnected").mockReturnValue(false);
 
     const statusHandler = (wsTransport as any).onStatusChangeHandler;
     if (statusHandler) {
       statusHandler("disconnected");
     }
 
-    jest.advanceTimersByTime(15000);
+    vi.advanceTimersByTime(15000);
     await Promise.resolve();
 
     // Simulate message from polling
@@ -236,8 +237,8 @@ describe("CompositeTransport", () => {
 
   it("should disconnect both transports", async () => {
     const transport = new CompositeTransport(wsUrl, apiUrl);
-    const onMessage = jest.fn();
-    const onStatusChange = jest.fn();
+    const onMessage = vi.fn();
+    const onStatusChange = vi.fn();
 
     await transport.connect(deviceId, onMessage, onStatusChange);
     await transport.disconnect();
