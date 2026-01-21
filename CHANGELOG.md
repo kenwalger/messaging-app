@@ -127,6 +127,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Controller API documentation with Mermaid diagrams
 
 ### Fixed
+- Frontend development server improvements
+  - Added `node_modules/` to `.gitignore` to prevent committing dependencies
+  - Added optional proxy configuration in `vite.config.ts` (commented) for future CORS handling
+  - Fixed TypeScript configuration: excluded `vite.config.ts` from main build to prevent compilation errors
+  - Verified all Vite setup requirements are met (hot reload, environment variables, type safety)
 - Frontend test configuration and test failures
   - Added Vitest configuration (`vitest.config.ts`) with globals enabled and jsdom environment
   - Added test setup file (`src/test-setup.ts`) for `@testing-library/jest-dom` matchers
