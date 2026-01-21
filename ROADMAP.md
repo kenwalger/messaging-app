@@ -359,6 +359,38 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Controller setup documented (`CONTROLLER_API_KEYS` environment variable)
 - [x] Expected local dev flow documented (2 terminals)
 
+## Phase 6.1.2: WebSocket Resilience & REST Fallback ✅
+
+**Status:** Completed
+
+### Composite Transport
+- [x] Composite transport implementation (`src/ui/services/compositeTransport.ts`) managing both WebSocket and REST polling
+- [x] Automatic REST polling fallback after 15s WebSocket disconnect (per Resolved Clarifications #51)
+- [x] REST polling stops immediately when WebSocket reconnects (WebSocket is preferred)
+- [x] Transport factory updated to use composite transport when both WebSocket and API URLs available
+
+### Resilience Features
+- [x] WebSocket reconnect with exponential backoff (1s, 2s, 4s, 8s, ... up to 60s max)
+- [x] Automatic fallback to REST polling when WebSocket unavailable >15s
+- [x] Seamless transport switching (UI does not care which transport is active)
+- [x] Message deduplication verified (handled by message store, prevents duplicates when switching transports)
+
+### Observability
+- [x] Development-only logging for reconnect attempts (no content exposed)
+- [x] Development-only logging for REST fallback activation/deactivation
+- [x] Logging follows Logging & Observability (#14) - event types only, no content
+
+### Testing
+- [x] Unit tests for composite transport resilience behavior
+- [x] Tests verify WebSocket as primary transport
+- [x] Tests verify REST fallback after 15s disconnect
+- [x] Tests verify REST polling stops on WebSocket reconnect
+
+### Documentation
+- [x] README.md updated with WebSocket Resilience section
+- [x] Documented reconnect behavior, REST fallback conditions, and transport switching
+- [x] CHANGELOG.md updated with resilience improvements
+
 ## Phase 6.2: UI/UX Implementation
 
 **Status:** Planned
@@ -462,6 +494,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - **Phase 6**: ✅ Completed (Backend Server Infrastructure)
 - **Phase 6.1**: ✅ Completed (Frontend Development Server)
 - **Phase 6.1.1**: ✅ Completed (Frontend-Backend Integration)
+- **Phase 6.1.2**: ✅ Completed (WebSocket Resilience & REST Fallback)
 - **Phase 7**: ✅ Completed (Logging & Observability - Core Services)
 - **Phase 2.5**: ✅ Completed (Controller API Endpoints for Provisioning/Revocation)
 - **Phase 6.2**: Next (UI/UX Implementation)

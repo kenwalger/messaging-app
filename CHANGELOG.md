@@ -81,8 +81,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed duplicate device state fetch in `main.tsx` (was fetching twice unnecessarily)
   - Removed redundant message read-only state update (messages already have state set when added to collection)
   - Added `.vite/` and `dist/` directories to `.gitignore` to prevent Vite build artifacts from being committed
-  - Distinguishes between client errors (invalid state) and server errors (unexpected failures)
-  - Updated test expectations to match correct error semantics
+- WebSocket resilience and REST polling fallback
+  - Created composite transport (`src/ui/services/compositeTransport.ts`) that manages both WebSocket and REST polling
+  - Automatic REST polling fallback after 15s WebSocket disconnect (per Resolved Clarifications #51)
+  - REST polling stops immediately when WebSocket reconnects (WebSocket is preferred transport)
+  - Enhanced WebSocket transport with reconnect logging (development mode only, no content exposed)
+  - Message deduplication verified and working correctly (handled by message store)
+  - Transport factory updated to use composite transport when both WebSocket and API URLs are available
+  - Added comprehensive unit tests for composite transport resilience behavior
+  - Updated README.md with WebSocket resilience documentation section
+- WebSocket resilience bug fixes
+  - Fixed transport switching bug: WebSocket reconnection now properly stops REST polling when polling is active
+  - Fixed timer reset issue: Fallback timer no longer resets on reconnection attempts, ensuring fallback activates after 15s total disconnect time
+  - Fixed unconditional fallback timer: Timer only schedules if WebSocket is not connected immediately
+  - Improved test coverage: Added tests for REST fallback activation, WebSocket reconnection handling, timer reset prevention, and message forwarding from both transports
 
 ### Added
 - Controller API endpoints for device provisioning and revocation
