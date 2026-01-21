@@ -85,7 +85,7 @@ export const App: React.FC<AppProps> = ({
    * On send:
    * - Message enters PENDING state immediately (optimistic update)
    * - UI updates optimistically
-   * - Delivery state transitions handled via onDeliveryUpdate
+   * - Delivery state transitions handled via subscription mechanism
    */
   const handleSendMessage = useCallback(
     async (
@@ -140,44 +140,6 @@ export const App: React.FC<AppProps> = ({
     [messageApi, onMessagesUpdate]
   );
 
-  /**
-   * Handle delivery state updates per deterministic rules.
-   * 
-   * Delivery state transitions: PENDING → DELIVERED, PENDING → FAILED
-   */
-  const handleDeliveryUpdate = useCallback(
-    (messageId: string, newState: "delivered" | "failed") => {
-      // Find conversation containing this message
-      const conversationId = Object.keys(messagesByConversation).find((cid) =>
-        messagesByConversation[cid].some((msg) => msg.message_id === messageId)
-      );
-
-      if (conversationId) {
-        setMessagesByConversation((prev) => {
-          const conversationMessages = prev[conversationId] || [];
-          const updated = conversationMessages.map((msg) =>
-            msg.message_id === messageId
-              ? {
-                  ...msg,
-                  state: newState,
-                  is_failed: newState === "failed",
-                  display_state: newState === "failed" ? "failed" : "delivered",
-                }
-              : msg
-          );
-          const next = { ...prev, [conversationId]: updated };
-          
-          // Notify parent of update
-          if (onMessagesUpdate) {
-            onMessagesUpdate(conversationId, updated);
-          }
-          
-          return next;
-        });
-      }
-    },
-    [messagesByConversation, onMessagesUpdate]
-  );
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -216,7 +178,6 @@ export const App: React.FC<AppProps> = ({
                 selectedConversation.send_disabled
               }
               onSendMessage={handleSendMessage}
-              onDeliveryUpdate={handleDeliveryUpdate}
             />
           </>
         ) : (

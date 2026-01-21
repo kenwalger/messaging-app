@@ -40,15 +40,6 @@ export interface MessageComposerProps {
     senderId: string,
     content: string
   ) => Promise<MessageViewModel>;
-  
-  /**
-   * Handler for delivery state updates.
-   * Called when message transitions from PENDING to DELIVERED or FAILED.
-   */
-  onDeliveryUpdate?: (
-    messageId: string,
-    newState: "delivered" | "failed"
-  ) => void;
 }
 
 /**
@@ -56,7 +47,7 @@ export interface MessageComposerProps {
  * 
  * Handles message composition and sending with:
  * - Optimistic updates (message enters PENDING state immediately)
- * - Delivery state transitions (PENDING → DELIVERED, PENDING → FAILED)
+ * - Delivery state transitions handled by parent via subscription
  * - Visual indicators for pending/delivered/failed states
  * 
  * No attachments, no message editing, no retry UI per constraints.
@@ -67,7 +58,6 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
   senderId,
   sendDisabled,
   onSendMessage,
-  onDeliveryUpdate,
 }) => {
   const [messageContent, setMessageContent] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -79,7 +69,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
    * - Message enters PENDING state immediately (optimistic update)
    * - UI updates optimistically
    * - Message is sent via API
-   * - Delivery state transitions handled via onDeliveryUpdate callback
+   * - Delivery state transitions handled by parent via subscription mechanism
    */
   const handleSend = useCallback(async () => {
     if (!messageContent.trim() || sendDisabled || isSending) {
@@ -98,8 +88,9 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
     } catch (error) {
       // Handle failure: message transitions to FAILED state
       // In real implementation, this would be handled by the API adapter
-      console.error("Failed to send message:", error);
-      // In production, the API adapter would handle this and call onDeliveryUpdate
+      // No content logged or leaked per deterministic rules
+      // Error handling is done silently; failed state will be updated via delivery subscription
+      // The subscription mechanism in handleSendMessage will handle delivery state transitions
     } finally {
       setIsSending(false);
     }

@@ -182,10 +182,71 @@ pytest tests/test_message_delivery.py
 pytest tests/test_message_delivery_hardening.py
 pytest tests/test_conversation_manager.py
 pytest tests/test_conversation_api.py
-
-# Run all tests
-pytest
 ```
+
+### Running the Application Locally
+
+#### Backend
+
+The backend is a Python application. To run it locally:
+
+```bash
+# Ensure virtual environment is activated
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies (if not already installed)
+pip install -r requirements.txt
+pip install -e .
+
+# Run backend server
+# Note: Backend server implementation is in progress
+# When available, run with:
+# python -m src.backend.server
+```
+
+**Note:** The backend server implementation is currently in development. The core services (message relay, conversation API, device registry, etc.) are implemented and tested, but the HTTP server wrapper is pending.
+
+#### Frontend (UI)
+
+The frontend is a React + TypeScript application. To run it locally:
+
+```bash
+# Navigate to UI directory
+cd src/ui
+
+# Install Node.js dependencies (if package.json exists)
+# npm install
+
+# Run development server
+# npm start
+# or
+# npm run dev
+```
+
+**Note:** The frontend UI implementation is currently in development. The React components are implemented, but the build configuration and development server setup are pending.
+
+#### Full Stack Development
+
+For full-stack development, you'll need to run both backend and frontend:
+
+```bash
+# Terminal 1: Backend
+source venv/bin/activate
+# python -m src.backend.server  # When available
+
+# Terminal 2: Frontend
+cd src/ui
+# npm start  # When available
+```
+
+**Current Status:**
+- Backend services: ✅ Implemented and tested
+- Backend HTTP server: ⏳ Pending
+- Frontend React components: ✅ Implemented
+- Frontend build/dev server: ⏳ Pending
+- API integration: ⏳ Pending
+
+See [ROADMAP.md](ROADMAP.md) for current development status.
 
 ## Project Structure
 

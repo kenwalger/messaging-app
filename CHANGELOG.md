@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- PR review feedback fixes for interactive messaging
+  - Removed console.error logging in MessageComposer (violates "no content logged or leaked" rule)
+  - Removed unused handleDeliveryUpdate callback in App.tsx (delivery updates handled via subscription)
+  - Simplified delivery state transition handling
+  - Updated README.md with local development instructions (backend and frontend)
+
 ### Added
 - Interactive messaging (send path only)
   - MessageComposer component for message composition and sending
