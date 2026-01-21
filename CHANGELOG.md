@@ -45,6 +45,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - WebSocket-based real-time message delivery and ACK handling
   - REST polling fallback for message delivery (when WebSocket unavailable)
   - Message ordering maintained (reverse chronological, newest first)
+- Developer-facing UX instrumentation for manual testing
+  - Message state visibility: PENDING messages show italic text with 🕐 (Queued) indicator, FAILED messages show ⚠ (Failed) indicator with muted styling
+  - Connection status indicator: Shows WebSocket connected/reconnecting, REST polling fallback active in status bar
+  - Debug mode toggle: Developer-facing toggle to show message metadata (message ID, state, timestamps) for manual testing
+  - UX guardrails: Send button disabled when connection is "connecting" or "disconnected", prevents duplicate sends via rapid clicking
+  - Connection status tracking: MessageHandlerService exposes connection status changes via callback for UI indicators
+  - Reactive state updates: Message state transitions (PENDING → DELIVERED) are visible immediately without refresh
 
 ### Fixed
 - Minimal backend HTTP & WebSocket server for local development

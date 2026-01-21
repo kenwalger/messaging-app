@@ -15,7 +15,6 @@
 
 import {
   ConnectionStatus,
-  ConnectionStatusHandler,
   MessageTransport,
 } from "./messageTransport";
 import { InMemoryMessageStore, MessageStore } from "./messageStore";
@@ -170,14 +169,12 @@ export class MessageHandlerService {
     // 3. message_id exists in store with state "sent" (original message we sent)
     const allMessages = this.store.getAllMessages();
     let existingMessage: MessageViewModel | null = null;
-    let conversationId: string | null = null;
     
     // Find the message in our store to check if it's a message we sent
-    for (const [convId, messages] of Object.entries(allMessages)) {
+    for (const [, messages] of Object.entries(allMessages)) {
       const found = messages.find((msg) => msg.message_id === message.message_id);
       if (found) {
         existingMessage = found;
-        conversationId = convId;
         break;
       }
     }
@@ -193,9 +190,6 @@ export class MessageHandlerService {
     if (isAck) {
       // This is an ACK for a message we sent
       // Update the existing message state instead of adding a new message
-      // Use conversation_id from existing message (more reliable than from ACK)
-      const targetConversationId = conversationId || message.conversation_id;
-      
       // Update message state (updateMessage already handles notification)
       this.updateMessage(message.message_id, {
         state: message.state,
@@ -218,15 +212,38 @@ export class MessageHandlerService {
   /**
    * Handle connection status change.
    * 
-   * Tracks connection status internally (no UI indicator yet per constraints).
+   * Tracks connection status internally and can notify external handlers.
    */
   private _handleConnectionStatusChange(status: ConnectionStatus): void {
     this.connectionStatus = status;
+
+    // Notify external handler if set
+    if (this._onConnectionStatusChange) {
+      this._onConnectionStatusChange(status);
+    }
 
     // On reconnect, reconcile missed messages using REST
     // This is handled by the transport layer automatically
     // (polling transport will fetch missed messages on next poll)
   }
+
+  /**
+   * Set callback for connection status changes.
+   * 
+   * Allows external components to track connection status for UI indicators.
+   * 
+   * @param callback Callback with new connection status
+   */
+  setOnConnectionStatusChange(
+    callback: (status: ConnectionStatus) => void
+  ): void {
+    // Store callback and call it when status changes
+    // We'll need to modify _handleConnectionStatusChange to call this
+    // For now, we'll use a ref to store the callback
+    this._onConnectionStatusChange = callback;
+  }
+
+  private _onConnectionStatusChange: ((status: ConnectionStatus) => void) | null = null;
 
   /**
    * Notify UI of message updates.

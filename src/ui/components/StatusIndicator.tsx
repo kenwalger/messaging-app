@@ -11,6 +11,8 @@
 
 import React from "react";
 
+import { ConnectionStatus } from "../services/messageTransport";
+
 export interface StatusIndicatorProps {
   /**
    * Device status string per Copy Rules (#13), Section 4.
@@ -23,6 +25,18 @@ export interface StatusIndicatorProps {
    * Per Resolved Clarifications (#38).
    */
   isReadOnly: boolean;
+  
+  /**
+   * Connection status for developer-facing indicator.
+   * Shows WebSocket/REST polling status for manual testing.
+   */
+  connectionStatus?: ConnectionStatus;
+  
+  /**
+   * True if REST polling fallback is active.
+   * Developer-facing indicator for transport status.
+   */
+  isPollingFallback?: boolean;
 }
 
 /**
@@ -34,6 +48,8 @@ export interface StatusIndicatorProps {
 export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   status,
   isReadOnly,
+  connectionStatus,
+  isPollingFallback = false,
 }) => {
   // Neutral color scheme per UX Behavior (#12), Section 5
   // No red/green/security color metaphors
@@ -41,15 +57,42 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
     ? "text-gray-600" // Neutral gray for disabled state
     : "text-gray-900"; // Standard text color for active state
 
+  // Developer-facing connection status indicator
+  const getConnectionStatusText = (): string => {
+    if (isPollingFallback) {
+      return "REST polling";
+    }
+    if (connectionStatus === "connected") {
+      return "WebSocket connected";
+    }
+    if (connectionStatus === "reconnecting") {
+      return "WebSocket reconnecting";
+    }
+    if (connectionStatus === "connecting") {
+      return "Connecting...";
+    }
+    if (connectionStatus === "disconnected") {
+      return "Disconnected";
+    }
+    return "";
+  };
+
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-white border-b border-gray-200">
-      <div className={`text-sm font-medium ${statusColor}`}>
-        {status}
+    <div className="flex items-center justify-between gap-2 px-4 py-2 bg-white border-b border-gray-200">
+      <div className="flex items-center gap-2">
+        <div className={`text-sm font-medium ${statusColor}`}>
+          {status}
+        </div>
+        {isReadOnly && (
+          <span className="text-xs text-gray-500">
+            (Read-only)
+          </span>
+        )}
       </div>
-      {isReadOnly && (
-        <span className="text-xs text-gray-500">
-          (Read-only)
-        </span>
+      {connectionStatus && (
+        <div className="text-xs text-gray-500">
+          {getConnectionStatusText()}
+        </div>
       )}
     </div>
   );

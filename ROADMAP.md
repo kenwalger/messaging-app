@@ -422,8 +422,16 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Improved race condition handling in multi-recipient ACK scenarios
 - [x] Enhanced conversation_id handling in ACK forwarding
 
+### Developer-Facing UX Instrumentation
+- [x] Message state visibility: PENDING (italic + 🕐), DELIVERED (normal), FAILED (muted + ⚠)
+- [x] Connection status indicator: WebSocket connected/reconnecting, REST polling fallback
+- [x] Debug mode toggle: Show message metadata (ID, state, timestamps) for manual testing
+- [x] UX guardrails: Disable send when connection initializing/disconnected, prevent duplicate sends
+- [x] Connection status tracking: Expose connection status from MessageHandlerService to UI
+
 ### Documentation
 - [x] README.md updated with end-to-end flow documentation
+- [x] README.md updated with Manual Testing Checklist section
 - [x] Testing instructions for two-browser-window scenario
 - [x] Known limitations documented (POC status)
 - [x] CHANGELOG.md updated with delivery flow completion and bug fixes

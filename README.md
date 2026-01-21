@@ -536,6 +536,54 @@ The frontend implements an interactive message send path with optimistic updates
 6. Verify in Window 1: Message state transitions from "Queued" to "Delivered" (ACK received)
 7. Verify message ordering: Newest messages appear first (reverse chronological)
 
+#### Manual Testing Checklist
+
+For developer-facing manual testing and debugging:
+
+**Connection Status Observation:**
+1. **Check Connection Indicator**: Look at the status bar at the top of the sidebar
+   - Should show "WebSocket connected" when backend is running
+   - Should show "WebSocket reconnecting" if connection drops
+   - Should show "REST polling" when WebSocket unavailable >15s
+2. **Kill Backend Briefly**: Stop the backend server (Ctrl+C)
+   - Observe connection indicator change to "Disconnected" or "REST polling"
+   - Send button should be disabled when disconnected
+3. **Restart Backend**: Start the backend server again
+   - Observe connection indicator return to "WebSocket connected"
+   - Send button should be enabled again
+
+**Message State Visibility:**
+1. **Send a Message**: Type and send a message
+   - Message should appear immediately with italic text and 🕐 (Queued) indicator
+   - Message should show PENDING state visually
+2. **Observe State Transition**: Wait for ACK (typically <1 second)
+   - Message text should change from italic to normal
+   - 🕐 indicator should disappear
+   - Message should show DELIVERED state
+3. **Test Failure Scenario**: Stop backend before sending
+   - Send button should be disabled (connection status prevents send)
+   - If message fails, it should show ⚠ (Failed) indicator with muted styling
+
+**Debug Mode:**
+1. **Enable Debug Mode**: Click "Show" button in "Debug Mode" section of sidebar
+2. **View Message Metadata**: Each message should now show:
+   - Message ID (UUID)
+   - State (sent, delivered, failed, expired)
+   - Created timestamp (ISO format)
+   - Expiration timestamp (ISO format)
+3. **Disable Debug Mode**: Click "Hide" to return to normal view
+
+**UX Guardrails:**
+1. **Send Button States**:
+   - Disabled when no conversation selected
+   - Disabled when connection is "connecting" or "disconnected"
+   - Disabled when device is read-only or conversation is closed
+   - Disabled when message content is empty
+   - Shows "Sending..." state during message send (prevents duplicate sends)
+2. **Rapid Clicking**: Try clicking send button multiple times rapidly
+   - Only one message should be sent (isSending state prevents duplicates)
+   - Button should show "Sending..." state during send operation
+
 #### Full Stack Development
 
 For full-stack development, you'll need to run both backend and frontend in separate terminals:

@@ -23,6 +23,12 @@ export interface MessageRowProps {
    * Per Resolved Clarifications (#38).
    */
   isReadOnly: boolean;
+  
+  /**
+   * True to show debug metadata (message ID, detailed timestamp, retry count).
+   * Developer-facing for manual testing.
+   */
+  showDebugInfo?: boolean;
 }
 
 /**
@@ -38,6 +44,7 @@ export interface MessageRowProps {
 export const MessageRow: React.FC<MessageRowProps> = ({
   message,
   isReadOnly,
+  showDebugInfo = false,
 }) => {
   // Format timestamp for display per Copy Rules (#13), Section 3
   const formatTimestamp = (isoString: string): string => {
@@ -65,7 +72,8 @@ export const MessageRow: React.FC<MessageRowProps> = ({
     if (message.state === "sent" || message.display_state === "queued") {
       // Pending messages (queued) per UX Behavior (#12), Section 3.3
       // UI shows "Queued" until backend acknowledges delivery
-      return "text-gray-600 opacity-75";
+      // Use italic text for subtle PENDING indicator
+      return "text-gray-600 opacity-75 italic";
     }
     // Delivered messages (normal display)
     return "text-gray-900";
@@ -85,19 +93,29 @@ export const MessageRow: React.FC<MessageRowProps> = ({
               {message.sender_id}
             </span>
             {message.is_failed && (
-              <span className="text-xs text-gray-500">
-                (Failed)
+              <span className="text-xs text-gray-500 flex items-center gap-1">
+                <span>⚠</span>
+                <span>(Failed)</span>
               </span>
             )}
             {(message.state === "sent" || message.display_state === "queued") && (
-              <span className="text-xs text-gray-500">
-                (Queued)
+              <span className="text-xs text-gray-500 flex items-center gap-1">
+                <span>🕐</span>
+                <span>(Queued)</span>
               </span>
             )}
           </div>
           <div className="text-sm text-gray-600">
             {formatTimestamp(message.created_at)}
           </div>
+          {showDebugInfo && (
+            <div className="text-xs text-gray-400 mt-1 space-y-0.5">
+              <div>ID: {message.message_id}</div>
+              <div>State: {message.state}</div>
+              <div>Created: {message.created_at}</div>
+              <div>Expires: {message.expires_at}</div>
+            </div>
+          )}
         </div>
         {isReadOnly && (
           <span className="text-xs text-gray-400">
