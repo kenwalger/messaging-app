@@ -309,15 +309,23 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Explicit service initialization with dependency injection
 - [x] Infrastructure-only work (no business logic changes)
 
-## Phase 6.1: Frontend Development Server
+## Phase 6.1: Frontend Development Server ✅
 
-**Status:** Planned
+**Status:** Completed
 
 ### Frontend Dev Server
-- [ ] Vite or equivalent build tool setup
-- [ ] API base URL configuration via environment variables
-- [ ] Development server with hot reload
-- [ ] Mock fallback still supported for testing
+- [x] Vite build tool setup with React and TypeScript
+- [x] API base URL configuration via `VITE_API_BASE_URL` environment variable
+- [x] Development server with hot reload (runs on `http://localhost:5173`)
+- [x] TypeScript strict mode enabled
+- [x] Tailwind CSS configured and integrated
+- [x] HTTP message API service implementation (`HttpMessageApiService`)
+- [x] WebSocket URL automatically derived from API base URL
+- [x] Entry point files created (`index.html`, `src/main.tsx`, `src/index.css`, `src/env.d.ts`)
+- [x] Configuration files created (`vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, `postcss.config.js`)
+- [x] `package.json` with all required dependencies
+- [x] Node.js >= 18.0.0 requirement documented
+- [x] Mock fallback still supported for testing (via `MockMessageApiService`)
 
 ## Phase 6.2: UI/UX Implementation
 
@@ -420,10 +428,11 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - **Phase 5.8**: ✅ Completed (Interactive Messaging - Send Path Only)
 - **Phase 5.9**: ✅ Completed (Incoming Message Handling & Live Updates)
 - **Phase 6**: ✅ Completed (Backend Server Infrastructure)
+- **Phase 6.1**: ✅ Completed (Frontend Development Server)
 - **Phase 7**: ✅ Completed (Logging & Observability - Core Services)
 - **Phase 2.5**: ✅ Completed (Controller API Endpoints for Provisioning/Revocation)
-- **Phase 6.1**: Next (Frontend Development Server)
-- **Phase 3, 6.2, 8-9**: Planned (timeline TBD)
+- **Phase 6.2**: Next (UI/UX Implementation)
+- **Phase 3, 8-9**: Planned (timeline TBD)
 
 ## Dependencies
 

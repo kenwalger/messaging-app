@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Frontend development server using Vite
+  - Vite configuration with React plugin and TypeScript support
+  - Development server runs on `http://localhost:5173` with hot reload
+  - TypeScript strict mode enabled
+  - Tailwind CSS configured and integrated
+  - Environment variable support for API base URL (`VITE_API_BASE_URL`)
+  - HTTP message API service implementation (`HttpMessageApiService`)
+  - WebSocket URL automatically derived from API base URL
+  - Entry point files: `index.html`, `src/main.tsx`, `src/index.css`, `src/env.d.ts`
+  - Configuration files: `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, `postcss.config.js`
+  - `package.json` with all required dependencies (Vite, React, TypeScript, Tailwind)
+  - Node.js >= 18.0.0 requirement documented
+
+### Fixed
 - Minimal backend HTTP & WebSocket server for local development
   - FastAPI server entrypoint (`src/backend/server.py`) with explicit dependency injection
   - WebSocket connection manager (`src/backend/websocket_manager.py`) for real-time message delivery

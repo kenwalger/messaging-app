@@ -63,15 +63,22 @@ AAM protects against:
 
 ## Project Status
 
-**Current Phase:** Backend Server Infrastructure (Completed) - Ready for frontend integration
+**Current Phase:** Frontend Development Server (Completed) - Full-stack development ready
 
 **Completed:**
+- Frontend Development Server
+  - Vite-based development server with React + TypeScript
+  - Hot reload enabled, runs on `http://localhost:5173`
+  - Environment variable support (`VITE_API_BASE_URL`)
+  - HTTP message API service implementation
+  - WebSocket and REST polling transport support
+  - Tailwind CSS configured and integrated
+  - TypeScript strict mode enabled
 - Backend Server Infrastructure
   - Minimal FastAPI server wrapper with all API endpoints wired to existing services
   - WebSocket support for real-time message delivery
   - Health check endpoint
   - Server runs on `http://127.0.0.1:8000` by default
-  - Ready for frontend integration
 - Controller API endpoints for device provisioning and revocation
   - POST /api/device/provision: Creates device in Pending state
   - POST /api/device/provision/confirm: Transitions Pending → Provisioned
@@ -245,28 +252,43 @@ The server will start on `http://127.0.0.1:8000` by default.
 - Logging API: `POST /api/log/event`
 - WebSocket: `WS /ws/messages` (for real-time message delivery)
 
-**Note:** Frontend development server setup is pending (see Phase 6.1 in ROADMAP.md).
-
 The server will start on `http://127.0.0.1:8000` by default.
 
 #### Frontend (UI)
 
-The frontend is a React + TypeScript application. To run it locally:
+The frontend is a React + TypeScript application using Vite. To run it locally:
+
+**Prerequisites:**
+- Node.js >= 18.0.0
+
+**Setup:**
 
 ```bash
 # Navigate to UI directory
 cd src/ui
 
-# Install Node.js dependencies (if package.json exists)
-# npm install
+# Install Node.js dependencies
+npm install
+
+# Configure API base URL (optional, defaults to http://127.0.0.1:8000)
+# Create .env file or set environment variable:
+export VITE_API_BASE_URL=http://127.0.0.1:8000
 
 # Run development server
-# npm start
-# or
-# npm run dev
+npm run dev
 ```
 
-**Note:** The frontend UI implementation is currently in development. The React components are implemented, but the build configuration and development server setup are pending.
+The frontend will start on `http://localhost:5173` by default.
+
+**Environment Configuration:**
+
+The frontend uses the `VITE_API_BASE_URL` environment variable to configure the backend API endpoint:
+
+- **Default**: `http://127.0.0.1:8000` (if not set)
+- **Set via `.env` file**: Create `src/ui/.env` with `VITE_API_BASE_URL=http://127.0.0.1:8000`
+- **Set via environment variable**: `export VITE_API_BASE_URL=http://127.0.0.1:8000`
+
+The WebSocket URL is automatically derived from the API base URL (replaces `http` with `ws` and appends `/ws/messages`).
 
 #### Full Stack Development
 
@@ -279,15 +301,16 @@ uvicorn src.backend.server:app --reload
 
 # Terminal 2: Frontend
 cd src/ui
-# npm start  # When available
+npm install  # First time only
+npm run dev
 ```
 
 **Current Status:**
 - Backend services: ✅ Implemented and tested
 - Backend HTTP server: ✅ Implemented (FastAPI with all endpoints)
 - Frontend React components: ✅ Implemented
-- Frontend build/dev server: ⏳ Pending
-- API integration: ⏳ Pending (frontend can now connect to backend)
+- Frontend build/dev server: ✅ Implemented (Vite)
+- API integration: ✅ Implemented (HTTP and WebSocket)
 
 See [ROADMAP.md](ROADMAP.md) for current development status.
 
