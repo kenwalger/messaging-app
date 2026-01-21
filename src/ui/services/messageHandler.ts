@@ -145,14 +145,73 @@ export class MessageHandlerService {
    * 
    * Normalizes, deduplicates, and merges into store.
    * Preserves ordering and state reconciliation.
+   * 
+   * Handles both regular messages and ACK messages:
+   * - Regular messages: Add to store (new message received)
+   * - ACK messages: Update existing message state (delivery confirmation)
+   * 
+   * ACK messages are identified by:
+   * - Having sender_id matching our device_id (ACK is for our own sent message)
+   * - Having state "delivered" or "failed" (delivery confirmation)
+   * - Message ID exists in store with state "sent" (original message we sent)
+   * 
+   * Note: Backend includes conversation_id in ACK messages, so we cannot rely on
+   * empty conversation_id for detection. Instead, we check if the message_id
+   * exists in our store as a sent message.
    */
   private _handleIncomingMessage(message: MessageViewModel): void {
-    // Add message to store (deduplication happens automatically)
-    const isNew = this.store.addMessage(message);
+    // Check if this is an ACK message (for a message we sent)
+    // ACK messages are sent back to the sender, so sender_id matches our device_id
+    // They indicate delivery status for a message we previously sent
+    // 
+    // Detection logic:
+    // 1. sender_id matches our device_id (ACK is for our own message)
+    // 2. state is "delivered" or "failed" (delivery confirmation)
+    // 3. message_id exists in store with state "sent" (original message we sent)
+    const allMessages = this.store.getAllMessages();
+    let existingMessage: MessageViewModel | null = null;
+    let conversationId: string | null = null;
+    
+    // Find the message in our store to check if it's a message we sent
+    for (const [convId, messages] of Object.entries(allMessages)) {
+      const found = messages.find((msg) => msg.message_id === message.message_id);
+      if (found) {
+        existingMessage = found;
+        conversationId = convId;
+        break;
+      }
+    }
+    
+    // ACK detection: message exists in store with state "sent" and this incoming message
+    // has sender_id matching our device_id and state "delivered" or "failed"
+    const isAck = existingMessage &&
+                  existingMessage.state === "sent" &&
+                  message.sender_id === this.deviceId &&
+                  (message.state === "delivered" || message.state === "failed") &&
+                  message.message_id === existingMessage.message_id;
 
-    if (isNew) {
-      // Notify UI of new message
-      this._notifyUpdate(message.conversation_id);
+    if (isAck) {
+      // This is an ACK for a message we sent
+      // Update the existing message state instead of adding a new message
+      // Use conversation_id from existing message (more reliable than from ACK)
+      const targetConversationId = conversationId || message.conversation_id;
+      
+      // Update message state (updateMessage already handles notification)
+      this.updateMessage(message.message_id, {
+        state: message.state,
+        is_failed: message.state === "failed",
+        display_state: message.state === "failed" ? "failed" : "delivered",
+      });
+      
+      // Note: updateMessage() already calls _notifyUpdate() internally, so we don't need to call it again
+    } else {
+      // Regular incoming message - add to store (deduplication happens automatically)
+      const isNew = this.store.addMessage(message);
+
+      if (isNew) {
+        // Notify UI of new message
+        this._notifyUpdate(message.conversation_id);
+      }
     }
   }
 

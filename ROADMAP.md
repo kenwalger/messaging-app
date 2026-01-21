@@ -391,6 +391,43 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Documented reconnect behavior, REST fallback conditions, and transport switching
 - [x] CHANGELOG.md updated with resilience improvements
 
+## Phase 6.1.3: End-to-End Message Delivery Flow ✅
+
+**Status:** Completed
+
+### Message Delivery Flow
+- [x] Frontend ACK sending when receiving messages via WebSocket
+- [x] Backend ACK forwarding to sender when recipient acknowledges
+- [x] Frontend ACK handling to update message state (PENDING → DELIVERED)
+- [x] Complete message lifecycle: Send → Delivery → ACK → UI Update
+- [x] Message state transitions: PENDING → DELIVERED → ACTIVE
+- [x] Automatic UI updates without refresh (optimistic updates + ACK reconciliation)
+- [x] WebSocket-based real-time message delivery and ACK handling
+- [x] REST polling fallback for message delivery (when WebSocket unavailable)
+- [x] Message ordering maintained (reverse chronological, newest first)
+
+### Testing
+- [x] End-to-end flow verified: Two browser windows can send/receive messages
+- [x] ACK lifecycle verified: Messages transition from PENDING to DELIVERED
+- [x] UI state updates verified: Messages appear immediately, state updates automatically
+- [x] Message ordering verified: Newest messages appear first
+
+### Bug Fixes
+- [x] Fixed critical ACK detection bug: ACK detection now correctly identifies ACKs regardless of conversation_id presence
+- [x] **CRITICAL**: Added missing `get_message_sender()` and `get_message_conversation()` methods to `MessageRelayService`
+  - Methods were referenced in `server.py` but did not exist on disk, causing `AttributeError` at runtime
+  - Methods now properly implemented, preventing runtime errors in ACK forwarding
+  - Replaced private attribute access with proper public API methods
+- [x] Removed duplicate UI notifications in ACK handling path
+- [x] Improved race condition handling in multi-recipient ACK scenarios
+- [x] Enhanced conversation_id handling in ACK forwarding
+
+### Documentation
+- [x] README.md updated with end-to-end flow documentation
+- [x] Testing instructions for two-browser-window scenario
+- [x] Known limitations documented (POC status)
+- [x] CHANGELOG.md updated with delivery flow completion and bug fixes
+
 ## Phase 6.2: UI/UX Implementation
 
 **Status:** Planned
@@ -495,6 +532,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - **Phase 6.1**: ✅ Completed (Frontend Development Server)
 - **Phase 6.1.1**: ✅ Completed (Frontend-Backend Integration)
 - **Phase 6.1.2**: ✅ Completed (WebSocket Resilience & REST Fallback)
+- **Phase 6.1.3**: ✅ Completed (End-to-End Message Delivery Flow)
 - **Phase 7**: ✅ Completed (Logging & Observability - Core Services)
 - **Phase 2.5**: ✅ Completed (Controller API Endpoints for Provisioning/Revocation)
 - **Phase 6.2**: Next (UI/UX Implementation)

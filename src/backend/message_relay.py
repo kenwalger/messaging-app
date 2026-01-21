@@ -387,3 +387,37 @@ class MessageRelayService:
             return True
         
         return False
+
+    def get_message_sender(self, message_id: UUID) -> Optional[str]:
+        """
+        Get sender ID for a message.
+        
+        Used for ACK forwarding to the sender.
+        
+        Args:
+            message_id: Message UUID
+        
+        Returns:
+            Sender device ID if message exists, None otherwise
+        """
+        if message_id in self._pending_deliveries:
+            metadata = self._pending_deliveries[message_id]
+            return metadata.get("sender_id")
+        return None
+    
+    def get_message_conversation(self, message_id: UUID) -> Optional[str]:
+        """
+        Get conversation ID for a message.
+        
+        Used for ACK forwarding to include conversation context.
+        
+        Args:
+            message_id: Message UUID
+        
+        Returns:
+            Conversation ID if message exists, None otherwise
+        """
+        if message_id in self._pending_deliveries:
+            metadata = self._pending_deliveries[message_id]
+            return metadata.get("conversation_id")
+        return None
