@@ -120,6 +120,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed frontend test: Added `console.error` logging in `MessageComposer` for development mode when message sending fails (satisfies test expectation while keeping production silent)
   - All backend E2E tests now passing (141/142 → 142/142)
   - All frontend tests now passing (109/110 → 110/110)
+- Critical ACK detection bug fix and ACK handling improvements
+  - Fixed ACK detection logic in `messageHandler.ts`: Previous logic checked for empty `conversation_id`, but backend sends `conversation_id` in ACK messages, causing ACKs to be treated as regular messages
+  - New ACK detection: Checks if `message_id` exists in store with state "sent" and incoming message has `sender_id` matching `device_id` with state "delivered" or "failed"
+  - Removed duplicate UI notifications: `updateMessage()` already calls `_notifyUpdate()` internally, removed redundant call in ACK handling path
+  - Replaced private attribute access with proper API: Added `get_message_sender()` and `get_message_conversation()` methods to `MessageRelayService`
+  - Improved race condition handling: Added comments explaining graceful handling of sender disconnections between connection check and send
+  - Enhanced conversation_id handling: Uses `conversation_id` from ACK if provided, otherwise gets from metadata, ensuring it's always included in forwarded ACK
+  - ACK flow now works correctly: Recipient sends ACK → Backend forwards to sender → Sender correctly detects ACK and updates message state
 
 ### Added
 - Controller API endpoints for device provisioning and revocation

@@ -412,11 +412,18 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] UI state updates verified: Messages appear immediately, state updates automatically
 - [x] Message ordering verified: Newest messages appear first
 
+### Bug Fixes
+- [x] Fixed critical ACK detection bug: ACK detection now correctly identifies ACKs regardless of conversation_id presence
+- [x] Removed duplicate UI notifications in ACK handling path
+- [x] Replaced private attribute access with proper API methods (get_message_sender, get_message_conversation)
+- [x] Improved race condition handling in multi-recipient ACK scenarios
+- [x] Enhanced conversation_id handling in ACK forwarding
+
 ### Documentation
 - [x] README.md updated with end-to-end flow documentation
 - [x] Testing instructions for two-browser-window scenario
 - [x] Known limitations documented (POC status)
-- [x] CHANGELOG.md updated with delivery flow completion
+- [x] CHANGELOG.md updated with delivery flow completion and bug fixes
 
 ## Phase 6.2: UI/UX Implementation
 

@@ -645,36 +645,36 @@ async def websocket_messages(
                         logger.warning(f"Invalid message_id in ACK from {device_id}: {message_id_str}")
                         continue
                     
-                    # Get sender_id before acknowledging (metadata may be deleted after ACK)
+                    # Get sender_id and conversation_id before acknowledging
+                    # (metadata may be deleted after ACK if all recipients delivered)
                     message_relay = get_message_relay()
-                    sender_id = None
-                    
-                    # Access pending deliveries to get sender_id
-                    # Note: This accesses a private attribute, but it's necessary for ACK forwarding
-                    # In a production system, this would be exposed via a proper method
-                    if hasattr(message_relay, "_pending_deliveries"):
-                        pending_metadata = message_relay._pending_deliveries.get(message_id)
-                        if pending_metadata:
-                            sender_id = pending_metadata.get("sender_id")
+                    sender_id = message_relay.get_message_sender(message_id)
+                    # Use conversation_id from ACK if provided, otherwise get from metadata
+                    ack_conversation_id = conversation_id or message_relay.get_message_conversation(message_id) or ""
                     
                     # Acknowledge delivery via MessageRelayService
                     ack_success = message_relay.acknowledge_delivery(message_id, device_id)
                     
                     if ack_success:
                         # Forward ACK to sender (if sender is connected via WebSocket)
+                        # Only forward if sender is different from recipient (not a self-message)
                         if sender_id and sender_id != device_id:
                             # Forward ACK to sender via WebSocket
                             ack_forward = {
                                 "type": "ack",
                                 "message_id": message_id_str,
-                                "conversation_id": conversation_id,
+                                "conversation_id": ack_conversation_id,
                                 "status": "delivered",  # ACK indicates successful delivery
                             }
                             
                             # Send ACK to sender if connected
+                            # Note: Race condition is handled by WebSocket manager's connection check
+                            # If sender disconnects between check and send, send will fail gracefully
                             if websocket_manager.is_connected(sender_id):
                                 websocket_manager.send_to_device(sender_id, json.dumps(ack_forward))
                                 logger.debug(f"Forwarded ACK for message {message_id} to sender {sender_id}")
+                            else:
+                                logger.debug(f"Sender {sender_id} not connected, ACK not forwarded (will be available via REST)")
                         
                         logger.debug(f"Processed ACK for message {message_id} from {device_id}")
                     else:
