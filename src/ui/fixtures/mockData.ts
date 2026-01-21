@@ -15,6 +15,7 @@ import {
   DeviceStateViewModel,
   MessageViewModel,
 } from "../types";
+import { MessageApiService, MockMessageApiService } from "../services/messageApi";
 
 /**
  * Mock device state for active device.
@@ -151,6 +152,11 @@ export const mockMessages: Record<string, MessageViewModel[]> = {
     },
   ],
 };
+
+/**
+ * Mock message API service for testing.
+ */
+export const mockMessageApi: MessageApiService = new MockMessageApiService();
 
 /**
  * Mock data with expired messages for testing expiration behavior.

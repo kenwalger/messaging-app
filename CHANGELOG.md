@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Interactive messaging (send path only)
+  - MessageComposer component for message composition and sending
+  - SendButton component with disabled states and sending indicator
+  - MessageApiService interface for client-side message sending
+  - Optimistic updates (message enters PENDING state immediately)
+  - Delivery state transitions (PENDING → DELIVERED, PENDING → FAILED)
+  - Visual indicators for pending (queued), delivered, and failed messages
+  - State handling for pending messages and delivery updates
+  - API integration using existing adapters
+  - Comprehensive unit tests for send path components
+  - Sending disabled when: neutral enterprise mode, revoked device, or closed conversation
+  - No retry controls exposed in UI per constraints
+  - No content logged or leaked per deterministic rules
 - Read-only UI shell (React + TypeScript + Tailwind CSS)
   - React components for read-only message and conversation display
   - StatusIndicator component for device state display
