@@ -9,6 +9,8 @@
  * Provides factory function to create appropriate transport:
  * - WebSocket (preferred)
  * - REST polling (fallback)
+ * 
+ * Uses VITE_API_BASE_URL environment variable for API endpoints.
  */
 
 import { MessageTransport } from "./messageTransport";
