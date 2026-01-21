@@ -436,6 +436,31 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Known limitations documented (POC status)
 - [x] CHANGELOG.md updated with delivery flow completion and bug fixes
 
+## Phase 6.1.5: Local Development Connectivity ✅
+
+**Status:** Completed
+
+### CORS Configuration
+- [x] CORS middleware added to FastAPI backend for local development
+- [x] Environment-aware CORS (permissive in dev, strict in production)
+- [x] Allowed origins: `http://localhost:5173`, `http://127.0.0.1:5173`
+- [x] Allowed methods: `GET`, `POST`, `OPTIONS` (CORS preflight support)
+- [x] Allowed headers: `Content-Type`, `Authorization`, `X-Device-ID`, `X-Controller-Key`
+- [x] Credentials: `false` (not required for local development)
+- [x] Health endpoint includes CORS headers automatically
+- [x] REST polling endpoint (`/api/message/receive`) passes CORS preflight
+
+### WebSocket Configuration
+- [x] WebSocket endpoint (`/ws/messages`) accepts connections from browser origins
+- [x] Device authentication via `device_id` query parameter (per existing spec)
+- [x] WebSocket security preserved (device validation, active state check)
+- [x] No CORS bypass - WebSocket protocol handles origin validation
+
+### Documentation
+- [x] README.md updated with CORS configuration details
+- [x] Environment variable documentation (`ENVIRONMENT` for production mode)
+- [x] Local development flow updated with CORS information
+
 ## Phase 6.2: UI/UX Implementation
 
 **Status:** Planned
@@ -541,6 +566,8 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - **Phase 6.1.1**: ✅ Completed (Frontend-Backend Integration)
 - **Phase 6.1.2**: ✅ Completed (WebSocket Resilience & REST Fallback)
 - **Phase 6.1.3**: ✅ Completed (End-to-End Message Delivery Flow)
+- **Phase 6.1.4**: ✅ Completed (Developer-Facing UX Instrumentation)
+- **Phase 6.1.5**: ✅ Completed (Local Development Connectivity - CORS & WebSocket)
 - **Phase 7**: ✅ Completed (Logging & Observability - Core Services)
 - **Phase 2.5**: ✅ Completed (Controller API Endpoints for Provisioning/Revocation)
 - **Phase 6.2**: Next (UI/UX Implementation)

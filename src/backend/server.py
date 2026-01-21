@@ -37,6 +37,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.backend.controller_api import ControllerAPIService
@@ -138,6 +139,35 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Configure CORS for local development
+# Only enable permissive CORS in development (when running locally)
+# Production should use strict CORS configuration
+is_development = os.getenv("ENVIRONMENT", "development").lower() in ("development", "dev", "local")
+
+if is_development:
+    # Permissive CORS for local development
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            "X-Device-ID",
+            "X-Controller-Key",
+        ],
+        expose_headers=[],
+        max_age=3600,
+    )
+    logger.info("CORS enabled for local development (localhost:5173, 127.0.0.1:5173)")
+else:
+    # Production: Strict CORS (no middleware added - will reject cross-origin requests)
+    logger.info("CORS disabled - production mode (strict security)")
 
 # Global service instances (initialized in startup)
 # TODO: Replace with proper dependency injection container
@@ -615,7 +645,54 @@ async def websocket_messages(
     
     # Validate device is active
     device_registry = get_device_registry()
-    if not device_registry.is_device_active(device_id):
+    
+    # Development mode: Auto-provision devices for local development convenience
+    # In production, devices must be provisioned via Controller API first
+    if is_development and not device_registry.is_device_active(device_id):
+        existing_device = device_registry.get_device_identity(device_id)
+        if existing_device is None:
+            # Device doesn't exist - auto-register, provision, and confirm for development
+            try:
+                # Register device in Pending state
+                device_registry.register_device(
+                    device_id=device_id,
+                    public_key="dev-auto-provisioned-key",  # Placeholder for development
+                    controller_id="dev-auto-provision",
+                )
+                # Provision device (Pending → Provisioned)
+                device_registry.provision_device(device_id)
+                # Confirm provisioning (Provisioned → Active)
+                device_registry.confirm_provisioning(device_id)
+                logger.info(f"Auto-provisioned device {device_id} for local development")
+            except (ValueError, Exception) as e:
+                # Device might have been registered between check and register
+                # Or provisioning failed - log and continue to check if now active
+                logger.debug(f"Auto-provisioning attempt for {device_id}: {e}")
+        else:
+            # Device exists but not active - try to complete provisioning
+            from src.shared.device_identity_types import DeviceIdentityState
+            try:
+                if existing_device.state == DeviceIdentityState.PENDING:
+                    # Provision device (Pending → Provisioned)
+                    device_registry.provision_device(device_id)
+                    # Confirm provisioning (Provisioned → Active)
+                    device_registry.confirm_provisioning(device_id)
+                    logger.info(f"Auto-completed provisioning for device {device_id} (was Pending)")
+                elif existing_device.state == DeviceIdentityState.PROVISIONED:
+                    # Confirm provisioning (Provisioned → Active)
+                    device_registry.confirm_provisioning(device_id)
+                    logger.info(f"Auto-confirmed provisioning for device {device_id} (was Provisioned)")
+            except (ValueError, Exception) as e:
+                # Provisioning/confirmation failed - log and continue to check if now active
+                logger.debug(f"Auto-provisioning completion attempt for {device_id}: {e}")
+        
+        # Check again if device is now active (might have been provisioned by another request)
+        if not device_registry.is_device_active(device_id):
+            # Still not active - close connection
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+    elif not device_registry.is_device_active(device_id):
+        # Production mode: Device must be provisioned via Controller API
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
     
