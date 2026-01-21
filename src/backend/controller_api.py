@@ -369,6 +369,19 @@ class ControllerAPIService:
                 "response": response.to_dict(),
             }
         
+        # Validate state transition: Only Active or Provisioned can be revoked
+        # Per State Machines (#7), Section 5: revocation only from Active or Provisioned
+        if device.state not in (DeviceIdentityState.ACTIVE, DeviceIdentityState.PROVISIONED):
+            return {
+                "status_code": 409,
+                "response": {
+                    "status": "error",
+                    "error_code": 409,
+                    "message": f"Device not in valid state for revocation (current state: {device.state.value})",
+                    "api_version": "v1",
+                },
+            }
+        
         # Revoke device per Identity Provisioning (#11), Section 5
         success = self.device_registry.revoke_device(
             device_id=request.device_id,
@@ -376,6 +389,8 @@ class ControllerAPIService:
         )
         
         if not success:
+            # This should not happen if state validation above passes
+            # But handle it as a backend failure if it does
             return {
                 "status_code": 500,
                 "response": {

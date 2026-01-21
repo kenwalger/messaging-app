@@ -380,9 +380,10 @@ class TestStateTransitions:
         result = controller_api.revoke_device(revoke_request, "test-controller-key")
         
         # Revocation should fail due to invalid state
-        # device_registry.revoke_device returns False for invalid state
-        # API returns 500 (backend failure) when revocation fails
-        assert result["status_code"] == 500
+        # API returns 409 Conflict for invalid state transitions (client error)
+        assert result["status_code"] == 409
+        assert result["response"]["error_code"] == 409
+        assert "not in valid state" in result["response"]["message"]
         
         # Device should still be in Pending state (revocation failed)
         device = controller_api.device_registry.get_device_identity("device-001")
