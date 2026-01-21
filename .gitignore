@@ -208,3 +208,7 @@ temp/
 *~
 
 project_structure.txt
+
+# Vite build tool
+.vite/
+dist/

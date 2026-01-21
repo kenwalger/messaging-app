@@ -82,10 +82,6 @@ function Root() {
         // Fetch all messages
         const allMessages = await messageFetchApi.fetchAllMessages(deviceId)
 
-        // Fetch device state first to set read-only flags
-        const fetchedDeviceState = await deviceApi.getDeviceState(deviceId)
-        setDeviceState(fetchedDeviceState)
-
         // Group messages by conversation ID
         const messagesByConv: Record<string, MessageViewModel[]> = {}
         const conversationIds = new Set<string>()
@@ -128,13 +124,6 @@ function Root() {
             const convId = Array.from(conversationIds)[i]
             const convMessages = messagesByConv[convId] || []
             const lastMessage = convMessages[0] // Newest first
-
-            // Update message read-only state based on device state
-            const updatedMessages = convMessages.map((msg) => ({
-              ...msg,
-              is_read_only: fetchedDeviceState.is_read_only,
-            }))
-            messagesByConv[convId] = updatedMessages
 
             fetchedConversations.push({
               ...conv,

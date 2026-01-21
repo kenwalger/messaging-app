@@ -77,6 +77,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed duplicate "Available Endpoints" section
 - Controller API state transition error handling
   - Fixed revoke_device() to return 409 Conflict for invalid state transitions instead of 500 Backend Failure
+- Frontend-backend integration code quality improvements
+  - Removed duplicate device state fetch in `main.tsx` (was fetching twice unnecessarily)
+  - Removed redundant message read-only state update (messages already have state set when added to collection)
+  - Added `.vite/` and `dist/` directories to `.gitignore` to prevent Vite build artifacts from being committed
   - Distinguishes between client errors (invalid state) and server errors (unexpected failures)
   - Updated test expectations to match correct error semantics
 
