@@ -32,6 +32,12 @@ export interface MessageListProps {
    * Per Resolved Clarifications (#38).
    */
   isReadOnly: boolean;
+  
+  /**
+   * True to show debug metadata (message ID, detailed timestamp, retry count).
+   * Developer-facing for manual testing.
+   */
+  showDebugInfo?: boolean;
 }
 
 /**
@@ -45,8 +51,9 @@ export interface MessageListProps {
  */
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
-  conversationId,
+  conversationId: _conversationId,
   isReadOnly,
+  showDebugInfo = false,
 }) => {
   // Filter out expired messages per UX Behavior (#12), Section 3.4
   // Expired messages disappear silently
@@ -70,6 +77,7 @@ export const MessageList: React.FC<MessageListProps> = ({
           key={message.message_id}
           message={message}
           isReadOnly={isReadOnly}
+          showDebugInfo={showDebugInfo}
         />
       ))}
     </div>

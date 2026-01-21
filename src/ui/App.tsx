@@ -19,7 +19,7 @@ import { StatusIndicator } from "./components/StatusIndicator";
 import { ConversationViewModel, DeviceStateViewModel, MessageViewModel } from "./types";
 import { MessageApiService } from "./services/messageApi";
 import { MessageHandlerService } from "./services/messageHandler";
-import { MessageTransport } from "./services/messageTransport";
+import { MessageTransport, ConnectionStatus } from "./services/messageTransport";
 
 export interface AppProps {
   /**
@@ -80,6 +80,13 @@ export const App: React.FC<AppProps> = ({
     Record<string, MessageViewModel[]>
   >(initialMessagesByConversation);
 
+  // Connection status for developer-facing indicator
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
+  const [isPollingFallback, setIsPollingFallback] = useState(false);
+  
+  // Debug mode toggle for developer-facing metadata
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
+
   // Message handler service for incoming messages
   const messageHandlerRef = useRef<MessageHandlerService | null>(null);
   // Use ref for onMessagesUpdate to avoid stale closure
@@ -125,10 +132,28 @@ export const App: React.FC<AppProps> = ({
       });
     });
 
+    // Track connection status changes for developer-facing indicator
+    messageHandler.setOnConnectionStatusChange((status) => {
+      setConnectionStatus(status);
+      
+      // Check if REST polling fallback is active
+      // Simple heuristic: if status is "connected" but WebSocket transport reports not connected,
+      // it's likely using REST polling fallback
+      // For CompositeTransport, we'd ideally check activeTransport, but for POC this works
+      const transportConnected = messageTransport.isConnected();
+      setIsPollingFallback(status === "connected" && !transportConnected);
+    });
+    
+    // Initial status update
+    const initialStatus = messageHandler.getConnectionStatus();
+    setConnectionStatus(initialStatus);
+    const transportConnected = messageTransport.isConnected();
+    setIsPollingFallback(initialStatus === "connected" && !transportConnected);
+
     // Initialize store with existing messages
     // Use ref to avoid recreating handler on every message change
     const initialMessages = initialMessagesRef.current;
-    for (const [conversationId, messages] of Object.entries(initialMessages)) {
+    for (const [, messages] of Object.entries(initialMessages)) {
       for (const message of messages) {
         messageHandler.addMessage(message);
       }
@@ -221,19 +246,19 @@ export const App: React.FC<AppProps> = ({
           messageHandlerRef.current.updateMessage(message.message_id, {
             state: newState,
             is_failed: newState === "failed",
-            display_state: newState === "failed" ? "failed" : "delivered",
+            display_state: (newState === "failed" ? "failed" : "delivered") as "delivered" | "failed" | "queued" | "expired" | "unknown",
           });
         } else {
           // Fallback if handler not initialized yet
           setMessagesByConversation((prev) => {
             const conversationMessages = prev[conversationId] || [];
-            const updated = conversationMessages.map((msg) =>
+            const updated: MessageViewModel[] = conversationMessages.map((msg) =>
               msg.message_id === message.message_id
                 ? {
                     ...msg,
                     state: newState,
                     is_failed: newState === "failed",
-                    display_state: newState === "failed" ? "failed" : "delivered",
+                    display_state: (newState === "failed" ? "failed" : "delivered") as "delivered" | "failed" | "queued" | "expired" | "unknown",
                   }
                 : msg
             );
@@ -262,7 +287,19 @@ export const App: React.FC<AppProps> = ({
         <StatusIndicator
           status={deviceState.display_status}
           isReadOnly={deviceState.is_read_only}
+          connectionStatus={connectionStatus}
+          isPollingFallback={isPollingFallback}
         />
+        {/* Debug mode toggle for developer-facing metadata */}
+        <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+          <span className="text-xs text-gray-500">Debug Mode</span>
+          <button
+            onClick={() => setShowDebugInfo(!showDebugInfo)}
+            className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
+          >
+            {showDebugInfo ? "Hide" : "Show"}
+          </button>
+        </div>
         <div className="flex-1 overflow-y-auto">
           <ConversationList
             conversations={conversations}
@@ -281,6 +318,7 @@ export const App: React.FC<AppProps> = ({
                 messages={selectedMessages}
                 conversationId={selectedConversationId}
                 isReadOnly={deviceState.is_read_only}
+                showDebugInfo={showDebugInfo}
               />
             </div>
             <MessageComposer
@@ -289,7 +327,9 @@ export const App: React.FC<AppProps> = ({
               sendDisabled={
                 deviceState.is_read_only ||
                 !deviceState.can_send ||
-                selectedConversation.send_disabled
+                selectedConversation.send_disabled ||
+                connectionStatus === "connecting" ||
+                connectionStatus === "disconnected"
               }
               onSendMessage={handleSendMessage}
             />

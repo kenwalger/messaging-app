@@ -139,8 +139,14 @@ export class InMemoryMessageStore implements MessageStore {
       // any → expired (can happen at any time if expiration timestamp passes)
       // Prevents overwriting delivered/failed with sent (backwards transition)
       // Also allows same-state updates (delivered→delivered, failed→failed) for metadata updates
+      
+      // Check for expired state first (before type narrowing)
+      const isExpired = existing.state === "expired" || message.state === "expired";
+      
       const shouldUpdate =
-        // sent → delivered/failed/expired (forward transition)
+        // any → expired (expiration can happen at any time)
+        isExpired ||
+        // sent → delivered/failed (forward transition)
         (existing.state === "sent" && message.state !== "sent") ||
         // sent → sent (both pending, update with latest)
         (existing.state === "sent" && message.state === "sent") ||
@@ -149,11 +155,7 @@ export class InMemoryMessageStore implements MessageStore {
         // delivered → delivered (same state, allow metadata updates)
         (existing.state === "delivered" && message.state === "delivered") ||
         // failed → failed (same state, allow metadata updates)
-        (existing.state === "failed" && message.state === "failed") ||
-        // any → expired (expiration can happen at any time)
-        message.state === "expired" ||
-        // expired → expired (update expiration metadata)
-        (existing.state === "expired" && message.state === "expired");
+        (existing.state === "failed" && message.state === "failed");
 
       if (shouldUpdate) {
         // Merge state: preserve created_at and sender_id from original (server timestamp is authoritative, first sender prevents spoofing)
@@ -162,11 +164,9 @@ export class InMemoryMessageStore implements MessageStore {
           ...existing,
           ...message,
           // Preserve created_at from original (don't overwrite with newer timestamp)
-          // Preserve sender_id from original (prevent sender spoofing on duplicate message IDs)
-          sender_id: existing.sender_id,
           // This ensures stable ordering by server timestamp
           created_at: existing.created_at,
-          // This prevents sender spoofing via duplicate message IDs
+          // Preserve sender_id from original (prevent sender spoofing on duplicate message IDs)
           sender_id: existing.sender_id,
         });
       }
