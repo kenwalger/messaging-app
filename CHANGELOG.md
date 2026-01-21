@@ -127,6 +127,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Controller API documentation with Mermaid diagrams
 
 ### Fixed
+- Frontend test configuration and test failures
+  - Added Vitest configuration (`vitest.config.ts`) with globals enabled and jsdom environment
+  - Added test setup file (`src/test-setup.ts`) for `@testing-library/jest-dom` matchers
+  - Added missing test dependencies: `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`
+  - Converted all test files from Jest to Vitest (replaced `jest.fn()` → `vi.fn()`, `jest.Mocked` → `vi.Mocked`, etc.)
+  - Fixed MessagingView test failures: Changed `getByText` to `getAllByText` for elements that appear multiple times (Conversation, device-002, Queued)
+  - Fixed messageStore sender preservation: Preserve original `sender_id` when deduplicating messages to prevent sender spoofing
+  - Fixed MessageComposer error logging: Added development-only `console.error` logging for send failures
+  - All frontend tests now passing (110 tests)
 - PR review feedback fix for MessagingView (round 2)
   - Fixed stale closure bug by including deriveConversations in useEffect dependency array
   - deriveConversations depends on isReadOnly, so callback must be re-registered when isReadOnly changes

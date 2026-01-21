@@ -19,7 +19,7 @@ import { MessageTransport, ConnectionStatus } from "../services/messageTransport
 import { MessageViewModel } from "../types";
 
 describe("MessageHandlerService", () => {
-  let mockTransport: ReturnType<typeof vi.fn>;
+  let mockTransport: vi.Mocked<MessageTransport>;
   let handler: MessageHandlerService;
   let onMessageHandler: ((message: MessageViewModel) => void) | null = null;
   let onStatusChangeHandler: ((status: ConnectionStatus) => void) | null = null;
@@ -34,7 +34,7 @@ describe("MessageHandlerService", () => {
       disconnect: vi.fn(),
       getStatus: vi.fn(() => "connected"),
       isConnected: vi.fn(() => true),
-    } as unknown as MessageTransport;
+    } as unknown as vi.Mocked<MessageTransport>;
 
     handler = new MessageHandlerService(mockTransport, "device-001");
   });

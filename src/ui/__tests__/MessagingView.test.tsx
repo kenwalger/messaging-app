@@ -20,7 +20,7 @@ import { MessageTransport } from "../services/messageTransport";
 import { MessageViewModel } from "../types";
 
 describe("MessagingView", () => {
-  let mockTransport: MessageTransport;
+  let mockTransport: vi.Mocked<MessageTransport>;
   let messageHandler: MessageHandlerService;
 
   beforeEach(() => {
@@ -30,7 +30,7 @@ describe("MessagingView", () => {
       disconnect: vi.fn(async () => {}),
       getStatus: vi.fn(() => "connected"),
       isConnected: vi.fn(() => true),
-    } as unknown as MessageTransport;
+    } as unknown as vi.Mocked<MessageTransport>;
 
     messageHandler = new MessageHandlerService(mockTransport, "device-001");
   });
@@ -83,7 +83,7 @@ describe("MessagingView", () => {
     );
 
     await waitFor(() => {
-      // Use getAllByText since "Conversation" appears in both header and list items
+      // Use getAllByText since "Conversation" appears in both the header and conversation items
       const conversations = screen.getAllByText(/Conversation/);
       expect(conversations.length).toBeGreaterThanOrEqual(1);
     });
@@ -108,7 +108,7 @@ describe("MessagingView", () => {
     );
 
     await waitFor(() => {
-      // Use getAllByText since "Conversation" appears in both header and list items
+      // Use getAllByText since "Conversation" appears in both the header and conversation items
       const conversations = screen.getAllByText(/Conversation/);
       expect(conversations.length).toBeGreaterThanOrEqual(1);
     });
@@ -141,7 +141,7 @@ describe("MessagingView", () => {
 
     await waitFor(() => {
       // Should show messages for selected conversation
-      // Use getAllByText since device-002 might appear multiple times
+      // Use getAllByText since device-002 appears in both conversation list and message pane
       const deviceElements = screen.getAllByText(/device-002/);
       expect(deviceElements.length).toBeGreaterThanOrEqual(1);
     });
@@ -162,7 +162,7 @@ describe("MessagingView", () => {
     );
 
     await waitFor(() => {
-      // Use getAllByText since "(Queued)" appears in both conversation list and message pane
+      // Use getAllByText since "Queued" appears in both conversation list and message pane
       const queuedElements = screen.getAllByText(/Queued/);
       expect(queuedElements.length).toBeGreaterThanOrEqual(1);
     });
@@ -204,10 +204,10 @@ describe("MessagingView", () => {
 
   it("filters expired messages from display", async () => {
     const now = new Date("2024-01-01T12:00:00Z");
-    // Create messages with different senders to distinguish them
-    const activeMessage = createMessage("msg-001", "conv-001", now, "delivered", "device-active");
+    // Use different sender IDs to distinguish messages
+    const activeMessage = createMessage("msg-001", "conv-001", now, "delivered", "device-002");
     const expiredMessage: MessageViewModel = {
-      ...createMessage("msg-002", "conv-001", new Date(now.getTime() - 86400000), "expired", "device-expired"),
+      ...createMessage("msg-002", "conv-001", new Date(now.getTime() - 86400000), "expired", "device-003"),
       is_expired: true,
     };
 
@@ -224,15 +224,10 @@ describe("MessagingView", () => {
 
     await waitFor(() => {
       // Should only show active message, not expired
-      // Expired messages are filtered out by MessageList component
-      // Check that we can see the active message's sender
-      const activeSenders = screen.getAllByText(/device-active/);
-      expect(activeSenders.length).toBeGreaterThanOrEqual(1);
-      
-      // Verify expired message is not displayed (filtered out)
-      // The expired message's sender should not appear
-      const expiredSenders = screen.queryAllByText(/device-expired/);
-      expect(expiredSenders.length).toBe(0);
+      // Active message's sender should be visible
+      expect(screen.getByText(/device-002/)).toBeInTheDocument();
+      // Expired message's sender should NOT be visible (filtered out)
+      expect(screen.queryByText(/device-003/)).not.toBeInTheDocument();
     });
   });
 

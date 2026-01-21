@@ -95,6 +95,10 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
       }
       // Error handling is done silently; failed state will be updated via delivery subscription
       // The subscription mechanism in handleSendMessage will handle delivery state transitions
+      // Development-only logging for observability (metadata only, no content)
+      if (import.meta.env.DEV) {
+        console.error("Failed to send message:", error);
+      }
     } finally {
       setIsSending(false);
     }
