@@ -40,7 +40,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 
 ## Phase 2: Identity & Provisioning ✅
 
-**Status:** Completed (Core Identity Management)
+**Status:** Completed (Core Identity Management + Controller API)
 
 ### Identity Management
 - [x] Device-bound identity implementation (Identity Provisioning #11)
@@ -48,6 +48,20 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Device identity state model (Pending, Provisioned, Active, Revoked)
 - [x] DeviceRegistry service with state tracking
 - [x] Identity enforcement service (server-side only)
+
+### Controller API Endpoints
+- [x] POST /api/device/provision: Creates device in Pending state per API Contracts (#10), Section 3.1
+- [x] POST /api/device/provision/confirm: Transitions Pending → Provisioned per Identity Provisioning (#11), Section 3
+- [x] POST /api/device/revoke: Revokes device immediately and irreversibly per API Contracts (#10), Section 3.2
+- [x] Controller authentication via API key (X-Controller-Key header) per API Contracts (#10), Section 5
+- [x] Controller DTOs and response types (ProvisionDeviceRequest/Response, ConfirmProvisioningRequest/Response, RevokeDeviceRequest/Response)
+- [x] Comprehensive unit tests (19 test cases) covering:
+  - Valid state transitions
+  - Invalid state transitions
+  - Authorization failures
+  - Idempotent revoke handling
+  - Revocation impact on conversations
+- [x] Controller API documentation with Mermaid diagrams
 - [x] Device revocation handling (immediate and irreversible per Identity Provisioning #11, Section 5)
 - [x] Key rotation scheduling (90 days or immediately upon revocation per Resolved TBDs)
 - [x] Revocation impact handling (removes from conversations per State Machines #7, Section 4)
