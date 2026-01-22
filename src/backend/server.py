@@ -19,6 +19,7 @@ TODO: Encryption and auth hardening
 """
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -494,7 +495,6 @@ async def send_message(
     
     # Convert payload to bytes (assuming base64 or hex encoding)
     try:
-        import base64
         encrypted_payload = base64.b64decode(payload)
     except Exception:
         # Try hex decoding as fallback
@@ -517,24 +517,24 @@ async def send_message(
     # Validate conversation exists and is ACTIVE
     conversation_registry = get_conversation_registry()
     
-    # Get conversation participants to check if conversation exists
+    # Get conversation participants and check conversation state
     participants = conversation_registry.get_conversation_participants(conversation_id)
     
-    # Check if conversation exists (participants would be empty set if not found)
-    # Also check if conversation is active
-    # If conversation doesn't exist, is_conversation_active returns False
-    # If conversation exists but is closed, is_conversation_active also returns False
-    # We need to distinguish: check participants first, then state
-    if not participants and not conversation_registry.is_conversation_active(conversation_id):
-        # No participants and not active - conversation likely doesn't exist
-        # (closed conversations might have participants until cleanup, but if empty and not active, assume not found)
+    # Check if conversation exists (regardless of state)
+    conversation_exists = conversation_registry.conversation_exists(conversation_id)
+    
+    # Check if conversation is ACTIVE
+    is_active = conversation_registry.is_conversation_active(conversation_id)
+    
+    # If conversation doesn't exist, return 404
+    if not conversation_exists:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Conversation not found",
         )
     
-    # Check if conversation is ACTIVE (conversation exists but might be closed)
-    if not conversation_registry.is_conversation_active(conversation_id):
+    # If conversation exists but is not active, return 400
+    if not is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid request: conversation is not active",
@@ -692,7 +692,6 @@ async def log_event(
             event_timestamp = None
     
     # Log event (content-free validation enforced by LoggingService)
-    from src.shared.logging_types import LogEventType
     try:
         log_event_type = LogEventType(event_type)
     except ValueError:
