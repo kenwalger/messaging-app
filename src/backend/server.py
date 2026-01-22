@@ -20,6 +20,7 @@ TODO: Encryption and auth hardening
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
 import os
@@ -27,6 +28,14 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any, AsyncGenerator, Dict, List, Optional
 from uuid import UUID, uuid4
+
+# Conditional import for cryptography (only needed in server encryption mode)
+try:
+    from cryptography.fernet import Fernet
+    CRYPTOGRAPHY_AVAILABLE = True
+except ImportError:
+    CRYPTOGRAPHY_AVAILABLE = False
+    Fernet = None  # type: ignore
 
 from fastapi import (
     Depends,
@@ -40,6 +49,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from src.backend.controller_api import ControllerAPIService
 from src.backend.controller_auth import ControllerAuthService
@@ -62,6 +72,7 @@ from src.shared.controller_types import (
     ProvisionDeviceRequest,
     RevokeDeviceRequest,
 )
+from src.shared.device_identity_types import DeviceIdentityState
 from src.shared.logging_types import LogEventType
 from src.shared.message_types import utc_now
 
@@ -152,6 +163,31 @@ app = FastAPI(
 # Only enable permissive CORS in development (when running locally)
 # Production should use strict CORS configuration
 is_development = os.getenv("ENVIRONMENT", "development").lower() in ("development", "dev", "local")
+
+# Encryption mode configuration
+# "server": Accept plaintext payloads, encrypt server-side (dev/POC mode only)
+# "client": Require hex/base64 encoded encrypted payloads (production mode)
+ENCRYPTION_MODE = os.getenv("ENCRYPTION_MODE", "client").lower()
+if ENCRYPTION_MODE not in ("server", "client"):
+    logger.warning(f"Invalid ENCRYPTION_MODE '{ENCRYPTION_MODE}', defaulting to 'client'")
+    ENCRYPTION_MODE = "client"
+
+# Server-side encryption key (dev/POC mode only)
+# In production, encryption should be client-side only
+# This key is derived from a fixed seed for dev mode consistency
+if ENCRYPTION_MODE == "server":
+    if not CRYPTOGRAPHY_AVAILABLE:
+        logger.error("ENCRYPTION_MODE=server requires cryptography package. Install with: pip install cryptography")
+        raise ImportError("cryptography package required for server-side encryption mode")
+    # Generate a deterministic key for dev mode (not secure for production)
+    key_seed = os.getenv("ENCRYPTION_KEY_SEED", "dev-mode-encryption-key-seed")
+    key_bytes = hashlib.sha256(key_seed.encode()).digest()
+    _server_encryption_key = base64.urlsafe_b64encode(key_bytes)
+    _server_encryptor = Fernet(_server_encryption_key)
+    logger.info("Server-side encryption enabled (dev/POC mode)")
+else:
+    _server_encryptor = None
+    logger.info("Client-side encryption required (production mode)")
 
 if is_development:
     # Permissive CORS for local development
@@ -267,6 +303,34 @@ def get_device_id(device_id: Optional[str] = Header(None, alias=HEADER_DEVICE_ID
     return device_id
 
 
+def create_error_response(
+    reason_code: str,
+    message: str,
+    request_id: str,
+    status_code: int = status.HTTP_400_BAD_REQUEST,
+) -> JSONResponse:
+    """
+    Create structured error response with error_code, message, and request_id.
+    
+    Args:
+        reason_code: Machine-readable error code.
+        message: Human-readable error message.
+        request_id: Request identifier for correlation.
+        status_code: HTTP status code (defaults to 400).
+    
+    Returns:
+        JSONResponse with error structure.
+    """
+    return JSONResponse(
+        content={
+            "error_code": reason_code,
+            "message": message,
+            "request_id": request_id,
+        },
+        status_code=status_code,
+    )
+
+
 
 
 # ============================================================================
@@ -331,19 +395,93 @@ async def revoke_device(
 # Conversation API Endpoints
 # ============================================================================
 
+class CreateConversationRequest(BaseModel):
+    """
+    Request model for creating a conversation.
+    
+    Per API Contracts (#10) and Functional Spec (#6), Section 4.1.
+    """
+    participants: List[str] = Field(..., min_length=1, description="List of participant device IDs")
+    
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "participants": ["device-001", "device-002"]
+            }
+        }
+    }
+
+
 @app.post("/api/conversation/create")
 async def create_conversation(
-    participants: List[str],
+    request: CreateConversationRequest,
     device_id: str = Depends(get_device_id),
 ) -> JSONResponse:
     """
     Create conversation endpoint per API Contracts (#10) and Functional Spec (#6), Section 4.1.
+    
+    Request body: { "participants": ["device-001", "device-002"] }
+    Response: { "conversation_id": "<uuid>", "participants": ["device-001", "device-002"], "status": "success" }
+    
+    The calling device (from X-Device-ID header) is automatically included in participants if not present.
+    Empty participant lists are rejected with 400 Bad Request.
     """
+    # Generate request_id for this request
+    request_id = str(uuid4())
+    
+    # Get services
     conversation_service = get_conversation_service()
+    logging_service = get_logging_service()
+    
+    # Extract participants from request
+    participants = request.participants
+    
+    # Validation: Reject empty participant lists with clear 400 error
+    if not participants:
+        reason_code = "participants_required"
+        if logging_service:
+            logging_service.log_event(
+                "conversation_creation_failed",
+                {
+                    "request_id": request_id,
+                    "device_id": device_id,
+                    "reason_code": reason_code,
+                },
+            )
+        return JSONResponse(
+            content={
+                "error_code": reason_code,
+                "message": "Invalid request: participants list cannot be empty",
+                "request_id": request_id,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    
+    # Ensure calling device is included in participants
+    if device_id not in participants:
+        participants = [device_id] + participants
+    
+    # Call conversation service
     result = conversation_service.create_conversation(device_id, participants)
     
+    # Return structured response
     status_code = result.get("status_code", 200)
-    return JSONResponse(content=result, status_code=status_code)
+    if status_code == 200:
+        # Success response with required fields
+        response_content = {
+            "conversation_id": result.get("conversation_id"),
+            "participants": result.get("participants", participants),
+            "status": "success",
+        }
+    else:
+        # Error response with structured format
+        response_content = {
+            "error_code": result.get("error_code", "conversation_creation_failed"),
+            "message": result.get("message", "Failed to create conversation"),
+            "request_id": request_id,
+        }
+    
+    return JSONResponse(content=response_content, status_code=status_code)
 
 
 @app.post("/api/conversation/join")
@@ -423,10 +561,85 @@ async def send_message(
     
     Request body: { conversation_id: string, payload: string, expiration?: ISO timestamp }
     Response: { message_id: string, timestamp: ISO timestamp, status: "queued" }
+    
+    Payload Encoding Requirements:
+    - ENCRYPTION_MODE=client (default/production): Payload must be hex or base64 encoded encrypted bytes
+    - ENCRYPTION_MODE=server (dev/POC only): Payload can be plaintext; server encrypts before persistence/delivery
+    
+    Validation checks that can return 400 Bad Request:
+    1. conversation_id_required: conversation_id field is missing or empty
+    2. payload_required: payload field is missing or empty
+    3. payload_not_string: payload is not a string type
+    4. payload_encoding_invalid: payload cannot be decoded as base64 or hex (client mode only)
+    5. payload_plaintext_rejected: plaintext payload sent when client-side encryption required
+    6. payload_size_exceeded: payload size exceeds MAX_MESSAGE_PAYLOAD_SIZE_KB (50KB)
+    7. conversation_not_active: conversation exists but is not in ACTIVE state
+    8. no_recipients_available: conversation has only the sender (no other participants)
+    9. expiration_invalid_format: expiration timestamp is not valid ISO 8601 format
+    10. expiration_not_future: expiration timestamp is not in the future
     """
-    # Validate device exists and is ACTIVE
+    # Generate request_id for this request
+    request_id = str(uuid4())
+    
+    # Get services
     device_registry = get_device_registry()
+    logging_service = get_logging_service()
+    
+    # Validate device exists and is ACTIVE
+    # Development mode: Auto-provision devices for local development convenience
+    if is_development and not device_registry.is_device_active(device_id):
+        existing_device = device_registry.get_device_identity(device_id)
+        if existing_device is None:
+            # Device doesn't exist - auto-register, provision, and confirm for development
+            try:
+                device_registry.register_device(
+                    device_id=device_id,
+                    public_key="dev-auto-provisioned-key",  # Placeholder for development
+                    controller_id="dev-auto-provision",
+                )
+                device_registry.provision_device(device_id)
+                device_registry.confirm_provisioning(device_id)
+                logger.info(f"Auto-provisioned device {device_id} for development")
+            except ValueError:
+                # Device might have been registered by another request
+                if not device_registry.is_device_active(device_id):
+                    reason_code = "device_not_active"
+                    if logging_service:
+                        logger.warning(
+                            f"Message send rejected: {reason_code}",
+                            extra={
+                                "request_id": request_id,
+                                "device_id": device_id,
+                                "reason_code": reason_code,
+                            },
+                        )
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Device not active",
+                    )
+        else:
+            # Device exists but not active - try to complete provisioning
+            try:
+                if existing_device.state == DeviceIdentityState.PENDING:
+                    device_registry.provision_device(device_id)
+                    device_registry.confirm_provisioning(device_id)
+                elif existing_device.state == DeviceIdentityState.PROVISIONED:
+                    device_registry.confirm_provisioning(device_id)
+            except Exception:
+                pass  # If provisioning fails, continue to check active status
+    
+    # Final check: device must be active
     if not device_registry.is_device_active(device_id):
+        reason_code = "device_not_active"
+        if logging_service:
+            logger.warning(
+                f"Message send rejected: {reason_code}",
+                extra={
+                    "request_id": request_id,
+                    "device_id": device_id,
+                    "reason_code": reason_code,
+                },
+            )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Device not active",
@@ -437,24 +650,60 @@ async def send_message(
     payload = request.get("payload", "")  # Encrypted payload (base64 or hex string)
     expiration = request.get("expiration")  # ISO timestamp string (optional)
     
-    # Validate required fields
+    # Validation check 1: conversation_id_required
     if not conversation_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: conversation_id is required",
+        reason_code = "conversation_id_required"
+        if logging_service:
+            logger.warning(
+                f"Message send rejected: {reason_code}",
+                extra={
+                    "request_id": request_id,
+                    "device_id": device_id,
+                    "reason_code": reason_code,
+                },
+            )
+        return create_error_response(
+            reason_code=reason_code,
+            message="Invalid request: conversation_id is required",
+            request_id=request_id,
         )
     
+    # Validation check 2: payload_required
     if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: payload is required",
+        reason_code = "payload_required"
+        if logging_service:
+            logger.warning(
+                f"Message send rejected: {reason_code}",
+                extra={
+                    "request_id": request_id,
+                    "device_id": device_id,
+                    "conversation_id": conversation_id,
+                    "reason_code": reason_code,
+                },
+            )
+        return create_error_response(
+            reason_code=reason_code,
+            message="Invalid request: payload is required",
+            request_id=request_id,
         )
     
-    # Validate payload is a string
+    # Validation check 3: payload_not_string
     if not isinstance(payload, str):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: payload must be a string",
+        reason_code = "payload_not_string"
+        if logging_service:
+            logger.warning(
+                f"Message send rejected: {reason_code}",
+                extra={
+                    "request_id": request_id,
+                    "device_id": device_id,
+                    "conversation_id": conversation_id,
+                    "reason_code": reason_code,
+                },
+            )
+        return create_error_response(
+            reason_code=reason_code,
+            message="Invalid request: payload must be a string",
+            request_id=request_id,
         )
     
     # Assign message_id server-side per API Contracts (#10), Section 3.3
@@ -463,32 +712,124 @@ async def send_message(
     # Use server timestamp per API Contracts (#10), Section 3.3
     message_timestamp = utc_now()
     
-    # Validate payload is a string
-    if not isinstance(payload, str):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: payload must be a string",
-        )
-    
-    # Convert payload to bytes (assuming base64 or hex encoding)
-    try:
-        encrypted_payload = base64.b64decode(payload)
-    except Exception:
-        # Try hex decoding as fallback
+    # Process payload based on encryption mode
+    if ENCRYPTION_MODE == "server":
+        # Server-side encryption mode (dev/POC only): accept plaintext, encrypt server-side
+        # Try to decode as encrypted payload first (in case client sent encrypted)
+        encrypted_payload = None
         try:
-            encrypted_payload = bytes.fromhex(payload)
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid payload encoding: {e}",
-            )
+            import binascii
+            encrypted_payload = base64.b64decode(payload, validate=True)
+        except (binascii.Error, ValueError, TypeError):
+            try:
+                encrypted_payload = bytes.fromhex(payload)
+            except (ValueError, TypeError):
+                # Not base64 or hex - assume plaintext and encrypt server-side
+                try:
+                    plaintext_payload = payload.encode("utf-8")
+                    encrypted_payload = _server_encryptor.encrypt(plaintext_payload)
+                except Exception as e:
+                    reason_code = "payload_encoding_invalid"
+                    if logging_service:
+                        logger.warning(
+                            f"Message send rejected: {reason_code}",
+                            extra={
+                                "request_id": request_id,
+                                "device_id": device_id,
+                                "conversation_id": conversation_id,
+                                "reason_code": reason_code,
+                            },
+                        )
+                    return create_error_response(
+                        reason_code=reason_code,
+                        message=f"Invalid payload: {e}",
+                        request_id=request_id,
+                    )
+    else:
+        # Client-side encryption mode (production): require hex or base64 encoded encrypted payload
+        # Validation check 4: payload_encoding_invalid
+        encrypted_payload = None
+        # Try base64 decoding with validation
+        try:
+            import binascii
+            # Use validate=True to ensure payload is actually valid base64
+            encrypted_payload = base64.b64decode(payload, validate=True)
+        except (binascii.Error, ValueError, TypeError):
+            # Not valid base64 - try hex decoding as fallback
+            try:
+                encrypted_payload = bytes.fromhex(payload)
+            except (ValueError, TypeError) as e:
+                # Check if payload looks like plaintext (contains printable ASCII characters)
+                # This is a heuristic - if it's valid UTF-8 and mostly printable, it's likely plaintext
+                is_plaintext = False
+                try:
+                    payload_bytes = payload.encode("utf-8")
+                    if len(payload_bytes) > 0:
+                        # Check if payload is mostly printable ASCII (heuristic for plaintext detection)
+                        # Count printable bytes (32-126 are printable ASCII, 9/10/13 are tab/newline/carriage return)
+                        printable_count = sum(1 for b in payload_bytes if 32 <= b <= 126 or b in (9, 10, 13))
+                        # If 80% or more of bytes are printable, consider it plaintext
+                        if printable_count >= len(payload_bytes) * 0.8:
+                            is_plaintext = True
+                except Exception:
+                    pass  # Not UTF-8, not plaintext
+                
+                if is_plaintext:
+                    # Validation check 5: payload_plaintext_rejected
+                    reason_code = "payload_plaintext_rejected"
+                    if logging_service:
+                        logger.warning(
+                            f"Message send rejected: {reason_code}",
+                            extra={
+                                "request_id": request_id,
+                                "device_id": device_id,
+                                "conversation_id": conversation_id,
+                                "reason_code": reason_code,
+                            },
+                        )
+                    return create_error_response(
+                        reason_code=reason_code,
+                        message="Invalid request: payload must be encrypted (hex or base64 encoded). Plaintext is not accepted in client-side encryption mode.",
+                        request_id=request_id,
+                    )
+                
+                reason_code = "payload_encoding_invalid"
+                if logging_service:
+                    logger.warning(
+                        f"Message send rejected: {reason_code}",
+                        extra={
+                            "request_id": request_id,
+                            "device_id": device_id,
+                            "conversation_id": conversation_id,
+                            "reason_code": reason_code,
+                        },
+                    )
+                return create_error_response(
+                    reason_code=reason_code,
+                    message=f"Invalid payload encoding: {e}",
+                    request_id=request_id,
+                )
     
-    # Enforce payload size ≤ 50KB
+    # Validation check 6: payload_size_exceeded
     payload_size_kb = len(encrypted_payload) / 1024
     if payload_size_kb > MAX_MESSAGE_PAYLOAD_SIZE_KB:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid request: payload size ({payload_size_kb:.1f}KB) exceeds maximum ({MAX_MESSAGE_PAYLOAD_SIZE_KB}KB)",
+        reason_code = "payload_size_exceeded"
+        if logging_service:
+            logger.warning(
+                f"Message send rejected: {reason_code}",
+                extra={
+                    "request_id": request_id,
+                    "device_id": device_id,
+                    "conversation_id": conversation_id,
+                    "reason_code": reason_code,
+                    "payload_size_kb": payload_size_kb,
+                    "max_size_kb": MAX_MESSAGE_PAYLOAD_SIZE_KB,
+                },
+            )
+        return create_error_response(
+            reason_code=reason_code,
+            message=f"Invalid request: payload size ({payload_size_kb:.1f}KB) exceeds maximum ({MAX_MESSAGE_PAYLOAD_SIZE_KB}KB)",
+            request_id=request_id,
         )
     
     # Validate conversation exists and is ACTIVE
@@ -504,21 +845,57 @@ async def send_message(
     is_active = conversation_registry.is_conversation_active(conversation_id)
     
     # If conversation doesn't exist, return 404
+    # Note: 404 errors don't use structured format (per API Contracts)
     if not conversation_exists:
+        reason_code = "conversation_not_found"
+        if logging_service:
+            logger.warning(
+                f"Message send rejected: {reason_code}",
+                extra={
+                    "request_id": request_id,
+                    "device_id": device_id,
+                    "conversation_id": conversation_id,
+                    "reason_code": reason_code,
+                },
+            )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Conversation not found",
         )
     
     # If conversation exists but is not active, return 400
+    # Validation check 7: conversation_not_active
     if not is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: conversation is not active",
+        reason_code = "conversation_not_active"
+        if logging_service:
+            logger.warning(
+                f"Message send rejected: {reason_code}",
+                extra={
+                    "request_id": request_id,
+                    "device_id": device_id,
+                    "conversation_id": conversation_id,
+                    "reason_code": reason_code,
+                },
+            )
+        return create_error_response(
+            reason_code=reason_code,
+            message="Invalid request: conversation is not active",
+            request_id=request_id,
         )
     
     # Authorization check: Verify sender is a participant in the conversation
     if device_id not in participants:
+        reason_code = "sender_not_participant"
+        if logging_service:
+            logger.warning(
+                f"Message send rejected: {reason_code}",
+                extra={
+                    "request_id": request_id,
+                    "device_id": device_id,
+                    "conversation_id": conversation_id,
+                    "reason_code": reason_code,
+                },
+            )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid request: sender is not a participant in this conversation",
@@ -527,33 +904,70 @@ async def send_message(
     # Exclude sender from recipients (they shouldn't receive their own message)
     recipients = [p for p in participants if p != device_id]
     
+    # Validation check 8: no_recipients_available
     if not recipients:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: no recipients available (conversation has only sender)",
+        reason_code = "no_recipients_available"
+        if logging_service:
+            logger.warning(
+                f"Message send rejected: {reason_code}",
+                extra={
+                    "request_id": request_id,
+                    "device_id": device_id,
+                    "conversation_id": conversation_id,
+                    "reason_code": reason_code,
+                },
+            )
+        return create_error_response(
+            reason_code=reason_code,
+            message="Invalid request: no recipients available (conversation has only sender)",
+            request_id=request_id,
         )
     
     # Parse expiration timestamp (use provided or derive from server timestamp + default expiration)
     if expiration:
         try:
             expiration_timestamp = datetime.fromisoformat(expiration.replace("Z", "+00:00"))
-            # Validate expiration is in the future
+            # Validation check 10: expiration_not_future
             if expiration_timestamp <= message_timestamp:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid request: expiration must be in the future",
+                reason_code = "expiration_not_future"
+                if logging_service:
+                    logger.warning(
+                        f"Message send rejected: {reason_code}",
+                        extra={
+                            "request_id": request_id,
+                            "device_id": device_id,
+                            "conversation_id": conversation_id,
+                            "reason_code": reason_code,
+                        },
+                    )
+                return create_error_response(
+                    reason_code=reason_code,
+                    message="Invalid request: expiration must be in the future",
+                    request_id=request_id,
                 )
         except (ValueError, AttributeError) as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid expiration timestamp: {e}",
+            # Validation check 9: expiration_invalid_format
+            reason_code = "expiration_invalid_format"
+            if logging_service:
+                logger.warning(
+                    f"Message send rejected: {reason_code}",
+                    extra={
+                        "request_id": request_id,
+                        "device_id": device_id,
+                        "conversation_id": conversation_id,
+                        "reason_code": reason_code,
+                    },
+                )
+            return create_error_response(
+                reason_code=reason_code,
+                message=f"Invalid expiration timestamp: {e}",
+                request_id=request_id,
             )
     else:
         # Derive expiration from server timestamp + default expiration days
         expiration_timestamp = message_timestamp + timedelta(days=DEFAULT_MESSAGE_EXPIRATION_DAYS)
     
     # Log message send attempt (metadata only, no content) per Logging & Observability (#14)
-    logging_service = get_logging_service()
     if logging_service:
         logging_service.log_event(
             LogEventType.MESSAGE_ATTEMPTED,
@@ -699,6 +1113,56 @@ async def log_event(
             "status": "logged",
             "api_version": "v1",
             "timestamp": utc_now().isoformat(),
+        },
+        status_code=status.HTTP_200_OK,
+    )
+
+
+# ============================================================================
+# Development Bootstrap Endpoint
+# ============================================================================
+
+@app.post("/api/dev/bootstrap")
+async def bootstrap_dev_data() -> JSONResponse:
+    """
+    Development-only endpoint to bootstrap test data.
+    
+    Creates:
+    - One active device (device-001)
+    - One active conversation (conv-001) with device-001 as participant
+    
+    This endpoint is only available in development mode.
+    Does NOT modify production behavior.
+    """
+    # Only available in development mode
+    if not is_development:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found",
+        )
+    
+    device_registry = get_device_registry()
+    conversation_registry = get_conversation_registry()
+    
+    # Create active device if it doesn't exist
+    device_id = "device-001"
+    if not device_registry.is_device_active(device_id):
+        # Register, provision, and confirm device
+        device_registry.register_device(device_id, "dev-public-key", "dev-controller")
+        device_registry.provision_device(device_id)
+        device_registry.confirm_provisioning(device_id)
+    
+    # Create active conversation if it doesn't exist
+    conversation_id = "conv-001"
+    if not conversation_registry.conversation_exists(conversation_id):
+        conversation_registry.register_conversation(conversation_id, [device_id])
+    
+    return JSONResponse(
+        content={
+            "status": "bootstrap_complete",
+            "device_id": device_id,
+            "conversation_id": conversation_id,
+            "message": "Development data created successfully",
         },
         status_code=status.HTTP_200_OK,
     )

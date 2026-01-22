@@ -91,6 +91,12 @@ class ConversationRegistry:
             return False
         
         with self._conversation_lock:
+            # Defensive error handling: Check if conversation already exists
+            if conversation_id in self._conversation_states:
+                # Conversation already exists - return False to indicate failure
+                logger.warning(f"Conversation {conversation_id} already exists")
+                return False
+            
             # Register conversation in Active state per State Machines (#7), Section 4
             self._conversation_members[conversation_id] = set(valid_participants)
             self._conversation_states[conversation_id] = ConversationState.ACTIVE

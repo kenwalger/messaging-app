@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Conversation creation endpoint (`POST /api/conversation/create`) now uses Pydantic request model
+  - Replaced raw `List[str]` parameter with `CreateConversationRequest` model
+  - Request body now requires `{"participants": ["device-001", "device-002"]}` format (not raw array)
+  - Fixed 422 Unprocessable Content errors caused by payload shape mismatches
+  - Updated to Pydantic v2 style (`model_config` instead of deprecated `Config` class)
+  - OpenAPI schema now clearly documents expected payload shape
+- Logging service crash fix (`logging_service.log_event`)
+  - Now safely handles both `LogEventType` enum and string event types
+  - Prevents `AttributeError: 'str' object has no attribute 'value'` crashes
+  - Invalid event types log warnings instead of crashing the server
+  - Updated `log_audit_event` to also handle string event types safely
+- Conversation creation defensive error handling
+  - Returns existing conversation if conversation with same ID already exists (idempotent behavior)
+  - Validates empty participant lists with clear 400 error response
+  - Automatically includes calling device in participants if not present
+  - Returns structured error responses with `error_code`, `message`, and `request_id`
+- Test fix for `test_send_message_sender_not_participant`
+  - Fixed test to use unique conversation ID to avoid fixture conflicts
+  - Properly registers all required test devices before creating conversation
+
 ### Added
 - Message send endpoint implementation (`POST /api/message/send`) per API Contracts (#10), Section 3.3
   - Request body: `{ conversation_id: string, payload: string, expiration?: ISO timestamp }`

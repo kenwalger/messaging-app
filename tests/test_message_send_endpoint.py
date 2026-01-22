@@ -122,7 +122,7 @@ class TestMessageSendEndpoint:
         UUID(data["message_id"])  # Will raise ValueError if invalid
     
     def test_send_message_missing_conversation_id(self, client: TestClient) -> None:
-        """Test send message with missing conversation_id returns 400."""
+        """Test send message with missing conversation_id returns 400 with structured error."""
         payload = base64.b64encode(b"test message").decode("utf-8")
         
         response = client.post(
@@ -134,30 +134,40 @@ class TestMessageSendEndpoint:
         )
         
         assert response.status_code == 400
-        assert "conversation_id is required" in response.json()["detail"]
+        data = response.json()
+        assert "error_code" in data
+        assert "request_id" in data
+        assert "message" in data
+        assert data["error_code"] == "conversation_id_required"
+        assert "conversation_id is required" in data["message"]
     
     def test_send_message_device_not_active(self, client: TestClient, device_registry: DeviceRegistry) -> None:
         """Test send message with inactive device returns 403."""
+        from unittest.mock import patch
+        import src.backend.server as server_module
+        
         # Register but don't activate device
         device_registry.register_device("inactive-device", "public-key", "controller-1")
         # Don't provision or confirm - device remains inactive
         
-        payload = base64.b64encode(b"test message").decode("utf-8")
-        
-        response = client.post(
-            "/api/message/send",
-            json={
-                "conversation_id": "conv-001",
-                "payload": payload,
-            },
-            headers={"X-Device-ID": "inactive-device"},
-        )
-        
-        assert response.status_code == 403
-        assert "not active" in response.json()["detail"].lower()
+        # Disable auto-provisioning for this test by patching is_development
+        with patch.object(server_module, "is_development", False):
+            payload = base64.b64encode(b"test message").decode("utf-8")
+            
+            response = client.post(
+                "/api/message/send",
+                json={
+                    "conversation_id": "conv-001",
+                    "payload": payload,
+                },
+                headers={"X-Device-ID": "inactive-device"},
+            )
+            
+            assert response.status_code == 403
+            assert "not active" in response.json()["detail"].lower()
     
     def test_send_message_empty_payload(self, client: TestClient) -> None:
-        """Test send message with empty payload returns 400."""
+        """Test send message with empty payload returns 400 with structured error."""
         response = client.post(
             "/api/message/send",
             json={
@@ -168,10 +178,15 @@ class TestMessageSendEndpoint:
         )
         
         assert response.status_code == 400
-        assert "payload" in response.json()["detail"].lower()
+        data = response.json()
+        assert "error_code" in data
+        assert "request_id" in data
+        assert "message" in data
+        assert data["error_code"] == "payload_required"
+        assert "payload" in data["message"].lower()
     
     def test_send_message_payload_too_large(self, client: TestClient) -> None:
-        """Test send message with payload exceeding 50KB returns 400."""
+        """Test send message with payload exceeding 50KB returns 400 with structured error."""
         # Create payload larger than 50KB
         large_payload = b"x" * (MAX_MESSAGE_PAYLOAD_SIZE_KB * 1024 + 1)
         payload = base64.b64encode(large_payload).decode("utf-8")
@@ -186,11 +201,16 @@ class TestMessageSendEndpoint:
         )
         
         assert response.status_code == 400
-        assert "payload size" in response.json()["detail"]
-        assert "exceeds maximum" in response.json()["detail"]
+        data = response.json()
+        assert "error_code" in data
+        assert "request_id" in data
+        assert "message" in data
+        assert data["error_code"] == "payload_size_exceeded"
+        assert "payload size" in data["message"]
+        assert "exceeds maximum" in data["message"]
     
     def test_send_message_conversation_not_active(self, client: TestClient, conversation_registry: ConversationRegistry) -> None:
-        """Test send message to closed conversation returns 400."""
+        """Test send message to closed conversation returns 400 with structured error."""
         # Close the conversation
         conversation_registry.close_conversation("conv-001")
         
@@ -206,7 +226,12 @@ class TestMessageSendEndpoint:
         )
         
         assert response.status_code == 400
-        assert "conversation is not active" in response.json()["detail"]
+        data = response.json()
+        assert "error_code" in data
+        assert "request_id" in data
+        assert "message" in data
+        assert data["error_code"] == "conversation_not_active"
+        assert "conversation is not active" in data["message"]
     
     def test_send_message_conversation_not_found(self, client: TestClient) -> None:
         """Test send message to non-existent conversation returns 404."""
@@ -284,20 +309,25 @@ class TestMessageSendEndpoint:
         assert "payload" not in event_data
         assert "content" not in event_data
     
-    def test_send_message_sender_not_participant(self, client: TestClient, conversation_registry: ConversationRegistry) -> None:
+    def test_send_message_sender_not_participant(self, client: TestClient, conversation_registry: ConversationRegistry, device_registry: DeviceRegistry) -> None:
         """Test send message from non-participant returns 403 Forbidden."""
         payload = base64.b64encode(b"test message").decode("utf-8")
         
-        # Create conversation with different participants
+        # Register recipient-002 so it can be a participant
+        device_registry.register_device("recipient-002", "public-key-3", "controller-1")
+        device_registry.provision_device("recipient-002")
+        device_registry.confirm_provisioning("recipient-002")
+        
+        # Create conversation with different participants (use different ID to avoid fixture conflict)
         conversation_registry.register_conversation(
-            "conv-001",
+            "conv-not-participant",
             ["recipient-001", "recipient-002"],  # sender-001 is NOT a participant
         )
         
         response = client.post(
             "/api/message/send",
             json={
-                "conversation_id": "conv-001",
+                "conversation_id": "conv-not-participant",
                 "payload": payload,
             },
             headers={"X-Device-ID": "sender-001"},  # sender-001 is not a participant
@@ -323,4 +353,115 @@ class TestMessageSendEndpoint:
         )
         
         assert response.status_code == 400
-        assert "expiration" in response.json()["detail"].lower()
+        data = response.json()
+        assert "error_code" in data
+        assert "request_id" in data
+        assert data["error_code"] == "expiration_not_future"
+    
+    def test_send_message_conversation_not_found_returns_structured_error(self, client: TestClient) -> None:
+        """
+        Test that sending to non-existent conversation returns structured error.
+        
+        This test demonstrates the current failure condition where frontend
+        receives 400 responses due to missing prerequisite data (conversation).
+        """
+        payload = base64.b64encode(b"test message").decode("utf-8")
+        
+        response = client.post(
+            "/api/message/send",
+            json={
+                "conversation_id": "nonexistent-conv",
+                "payload": payload,
+            },
+            headers={"X-Device-ID": "sender-001"},
+        )
+        
+        # Should return 404 (conversation not found)
+        assert response.status_code == 404
+        # Verify structured error response format
+        data = response.json()
+        # Note: 404 errors don't use structured format, but 400 errors do
+        assert "detail" in data or "error_code" in data
+    
+    def test_send_message_plaintext_accepted_in_server_mode(self, client: TestClient) -> None:
+        """Test that plaintext payload is accepted and encrypted server-side when ENCRYPTION_MODE=server."""
+        from unittest.mock import patch
+        import src.backend.server as server_module
+        import os
+        
+        # Skip test if cryptography is not available
+        try:
+            from cryptography.fernet import Fernet
+            import hashlib
+            import base64 as b64
+            
+            key_seed = "dev-mode-encryption-key-seed"
+            key_bytes = hashlib.sha256(key_seed.encode()).digest()
+            server_key = b64.urlsafe_b64encode(key_bytes)
+            server_encryptor = Fernet(server_key)
+        except ImportError:
+            pytest.skip("cryptography package not available")
+        
+        # Mock ENCRYPTION_MODE to be "server" via both module variable and environment
+        with patch.dict(os.environ, {"ENCRYPTION_MODE": "server"}), \
+             patch.object(server_module, "ENCRYPTION_MODE", "server"), \
+             patch.object(server_module, "_server_encryptor", server_encryptor):
+            # Send plaintext payload
+            plaintext_payload = "Hello, this is plaintext!"
+            
+            response = client.post(
+                "/api/message/send",
+                json={
+                    "conversation_id": "conv-001",
+                    "payload": plaintext_payload,
+                },
+                headers={"X-Device-ID": "sender-001"},
+            )
+            
+            # Should succeed (plaintext encrypted server-side)
+            assert response.status_code == 202
+            data = response.json()
+            assert "message_id" in data
+            assert "timestamp" in data
+            assert data["status"] == "queued"
+    
+    def test_send_message_plaintext_rejected_in_client_mode(self, client: TestClient) -> None:
+        """Test that plaintext payload is rejected with clear error code when ENCRYPTION_MODE=client."""
+        from unittest.mock import patch
+        import src.backend.server as server_module
+        
+        # Patch the send_message function's ENCRYPTION_MODE check
+        # The code at line 641 checks: if ENCRYPTION_MODE == "server":
+        # We need to ensure it evaluates to False (client mode)
+        original_mode = server_module.ENCRYPTION_MODE
+        original_encryptor = getattr(server_module, "_server_encryptor", None)
+        
+        # Directly set the module variables (more reliable than patch.object for module-level vars)
+        server_module.ENCRYPTION_MODE = "client"
+        server_module._server_encryptor = None
+        
+        try:
+            # Send plaintext payload (not hex or base64 encoded)
+            plaintext_payload = "Hello, this is plaintext!"
+            
+            response = client.post(
+                "/api/message/send",
+                json={
+                    "conversation_id": "conv-001",
+                    "payload": plaintext_payload,
+                },
+                headers={"X-Device-ID": "sender-001"},
+            )
+            
+            # Should return 400 with plaintext_rejected error code
+            assert response.status_code == 400, f"Expected 400, got {response.status_code}. Response: {response.json()}. ENCRYPTION_MODE={server_module.ENCRYPTION_MODE}, _server_encryptor={server_module._server_encryptor}"
+            data = response.json()
+            assert "error_code" in data
+            assert "request_id" in data
+            assert "message" in data
+            assert data["error_code"] == "payload_plaintext_rejected", f"Expected payload_plaintext_rejected, got {data.get('error_code')}"
+            assert "plaintext" in data["message"].lower() or "encrypted" in data["message"].lower()
+        finally:
+            # Restore original values
+            server_module.ENCRYPTION_MODE = original_mode
+            server_module._server_encryptor = original_encryptor

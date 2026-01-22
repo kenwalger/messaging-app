@@ -51,7 +51,7 @@ class LoggingService:
     
     def log_event(
         self,
-        event_type: LogEventType,
+        event_type: Any,  # Accept LogEventType enum or string
         event_data: Dict[str, Any],
         classification: LogClassification = LogClassification.INTERNAL,
     ) -> None:
@@ -62,18 +62,34 @@ class LoggingService:
         No message content, keys, or sensitive data may be logged.
         
         Args:
-            event_type: Type of event (permitted types only).
+            event_type: Type of event (LogEventType enum or string). If string, attempts to convert to enum.
             event_data: Event data dictionary (content-free).
             classification: Log classification (default Internal).
         
         Raises:
-            ValueError: If event_data contains prohibited content.
+            ValueError: If event_data contains prohibited content or event_type is invalid.
         """
+        # Safely resolve event type - handle both Enum and string
+        # This prevents crashes when string is passed instead of enum
+        if hasattr(event_type, "value"):
+            # It's an enum, use the value
+            event_type_enum = event_type
+            event_name = event_type.value
+        else:
+            # It's a string, try to convert to enum
+            try:
+                event_type_enum = LogEventType(str(event_type))
+                event_name = event_type_enum.value
+            except (ValueError, TypeError) as e:
+                # Invalid event type - log warning but don't crash
+                logger.warning(f"Invalid event type '{event_type}', skipping log entry: {e}")
+                return
+        
         # Validate event data is content-free per Logging & Observability (#14), Section 4
         self._validate_event_data(event_data)
         
         log_event = LogEvent(
-            event_type=event_type,
+            event_type=event_type_enum,
             event_data=event_data,
             classification=classification,
         )
@@ -82,7 +98,7 @@ class LoggingService:
             self._logs.append(log_event)
         
         # Also log to standard Python logger for immediate visibility
-        logger.info(f"Event logged: {event_type.value} - {json.dumps(event_data)}")
+        logger.info(f"Event logged: {event_name} - {json.dumps(event_data)}")
     
     def log_audit_event(
         self,
@@ -121,7 +137,9 @@ class LoggingService:
         with self._log_lock:
             self._audit_events.append(audit_event)
         
-        logger.info(f"Audit event logged: {event_id} - {event_type.value}")
+        # Safely get event type value (handle both Enum and string)
+        event_name = event_type.value if hasattr(event_type, "value") else str(event_type)
+        logger.info(f"Audit event logged: {event_id} - {event_name}")
         
         return event_id
     
