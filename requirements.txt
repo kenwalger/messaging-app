@@ -21,10 +21,11 @@ types-mock>=1.0.0
 # Web framework
 fastapi>=0.104.0,<1.0.0
 uvicorn[standard]>=0.24.0,<1.0.0
+httpx>=0.24.0,<1.0.0  # Required for FastAPI TestClient
 
 # Note: Additional dependencies will be added as modules are implemented:
 # - WebSocket client (e.g., websockets, aiohttp)
-# - HTTP client (e.g., requests, httpx)
+# - HTTP client (e.g., requests)
 # - Encryption libraries (e.g., cryptography)
 # - Secure storage (platform-specific)
 # - Logging (e.g., structlog)

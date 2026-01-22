@@ -287,7 +287,7 @@ class ConversationService:
         """
         # Check if conversation exists
         participants = self.conversation_registry.get_conversation_participants(conversation_id)
-        if participants is None:
+        if not participants:
             return {
                 "status": "error",
                 "error_code": 404,
@@ -369,7 +369,7 @@ class ConversationService:
         """
         # Check if conversation exists
         participants = self.conversation_registry.get_conversation_participants(conversation_id)
-        if participants is None:
+        if not participants:
             return {
                 "status": "error",
                 "error_code": 404,
@@ -445,7 +445,7 @@ class ConversationService:
         """
         # Check if conversation exists
         participants = self.conversation_registry.get_conversation_participants(conversation_id)
-        if participants is None:
+        if not participants:
             return {
                 "status": "error",
                 "error_code": 404,

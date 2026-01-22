@@ -23,7 +23,7 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, AsyncGenerator, Dict, List, Optional
 from uuid import UUID, uuid4
 
@@ -49,12 +49,19 @@ from src.backend.identity_enforcement import IdentityEnforcementService
 from src.backend.logging_service import LoggingService
 from src.backend.message_relay import MessageRelayService
 from src.backend.websocket_manager import FastAPIWebSocketManager
-from src.shared.constants import HEADER_CONTROLLER_KEY, HEADER_DEVICE_ID
+from src.shared.constants import (
+    CLOCK_SKEW_TOLERANCE_MINUTES,
+    DEFAULT_MESSAGE_EXPIRATION_DAYS,
+    HEADER_CONTROLLER_KEY,
+    HEADER_DEVICE_ID,
+    MAX_MESSAGE_PAYLOAD_SIZE_KB,
+)
 from src.shared.controller_types import (
     ConfirmProvisioningRequest,
     ProvisionDeviceRequest,
     RevokeDeviceRequest,
 )
+from src.shared.logging_types import LogEventType
 from src.shared.message_types import utc_now
 
 # Configure logging per Logging & Observability (#14)
@@ -411,39 +418,65 @@ async def send_message(
     Send message endpoint per API Contracts (#10), Section 3.3.
     
     Sends encrypted message; backend stores payload temporarily for delivery.
+    Message enters PendingDelivery state and is forwarded to recipients via WebSocket or offline queue.
     """
-    # Extract request fields per API Contracts (#10), Section 3.3
-    recipients = request.get("recipients", [])
-    payload = request.get("payload", "")  # Encrypted payload (base64 or hex string)
-    expiration = request.get("expiration")  # ISO timestamp string
+    # Extract required request fields per API Contracts (#10), Section 3.3
+    message_id_str = request.get("message_id")
     conversation_id = request.get("conversation_id", "")
+    payload = request.get("payload", "")  # Encrypted payload (base64 or hex string)
+    timestamp_str = request.get("timestamp")  # ISO timestamp string
+    expiration = request.get("expiration")  # ISO timestamp string (optional, derived from timestamp if not provided)
     
-    # If recipients list is empty, derive from conversation participants
-    if not recipients:
-        if not conversation_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid request: recipients list or conversation_id must be provided",
-            )
-        
-        # Get conversation participants
-        conversation_registry = get_conversation_registry()
-        participants = conversation_registry.get_conversation_participants(conversation_id)
-        
-        if not participants:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conversation not found or has no participants",
-            )
-        
-        # Exclude sender from recipients (they shouldn't receive their own message)
-        recipients = [p for p in participants if p != device_id]
-        
-        if not recipients:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid request: no recipients available (conversation has only sender)",
-            )
+    # Validate required fields
+    if not message_id_str:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request: message_id is required",
+        )
+    
+    if not conversation_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request: conversation_id is required",
+        )
+    
+    if not timestamp_str:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request: timestamp is required",
+        )
+    
+    # Parse and validate message_id
+    try:
+        message_id = UUID(message_id_str)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid message_id: {e}",
+        )
+    
+    # Parse and validate timestamp (reject expired)
+    try:
+        message_timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+    except (ValueError, AttributeError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid timestamp format: {e}",
+        )
+    
+    # Reject expired timestamps and future timestamps (with clock skew tolerance)
+    now = utc_now()
+    clock_skew = timedelta(minutes=CLOCK_SKEW_TOLERANCE_MINUTES)
+    if message_timestamp < now - clock_skew:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request: timestamp is expired",
+        )
+    if message_timestamp > now + clock_skew:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request: timestamp is too far in the future",
+        )
     
     # Validate payload is a string
     if not isinstance(payload, str):
@@ -459,25 +492,6 @@ async def send_message(
             detail="Invalid request: payload cannot be empty",
         )
     
-    # Validate expiration is provided
-    if not expiration:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: expiration timestamp is required",
-        )
-    
-    # Parse expiration timestamp
-    try:
-        expiration_timestamp = datetime.fromisoformat(expiration.replace("Z", "+00:00"))
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid expiration timestamp: {e}",
-        )
-    
-    # Generate message ID
-    message_id = uuid4()
-    
     # Convert payload to bytes (assuming base64 or hex encoding)
     try:
         import base64
@@ -492,7 +506,85 @@ async def send_message(
                 detail=f"Invalid payload encoding: {e}",
             )
     
-    # Relay message via MessageRelayService
+    # Enforce payload size ≤ 50KB
+    payload_size_kb = len(encrypted_payload) / 1024
+    if payload_size_kb > MAX_MESSAGE_PAYLOAD_SIZE_KB:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid request: payload size ({payload_size_kb:.1f}KB) exceeds maximum ({MAX_MESSAGE_PAYLOAD_SIZE_KB}KB)",
+        )
+    
+    # Validate conversation exists and is ACTIVE
+    conversation_registry = get_conversation_registry()
+    
+    # Get conversation participants to check if conversation exists
+    participants = conversation_registry.get_conversation_participants(conversation_id)
+    
+    # Check if conversation exists (participants would be empty set if not found)
+    # Also check if conversation is active
+    # If conversation doesn't exist, is_conversation_active returns False
+    # If conversation exists but is closed, is_conversation_active also returns False
+    # We need to distinguish: check participants first, then state
+    if not participants and not conversation_registry.is_conversation_active(conversation_id):
+        # No participants and not active - conversation likely doesn't exist
+        # (closed conversations might have participants until cleanup, but if empty and not active, assume not found)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found",
+        )
+    
+    # Check if conversation is ACTIVE (conversation exists but might be closed)
+    if not conversation_registry.is_conversation_active(conversation_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request: conversation is not active",
+        )
+    
+    # Authorization check: Verify sender is a participant in the conversation
+    if device_id not in participants:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid request: sender is not a participant in this conversation",
+        )
+    
+    # Exclude sender from recipients (they shouldn't receive their own message)
+    recipients = [p for p in participants if p != device_id]
+    
+    if not recipients:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request: no recipients available (conversation has only sender)",
+        )
+    
+    # Parse expiration timestamp (use provided or derive from timestamp + default expiration)
+    if expiration:
+        try:
+            expiration_timestamp = datetime.fromisoformat(expiration.replace("Z", "+00:00"))
+        except (ValueError, AttributeError) as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid expiration timestamp: {e}",
+            )
+    else:
+        # Derive expiration from timestamp + default expiration days
+        expiration_timestamp = message_timestamp + timedelta(days=DEFAULT_MESSAGE_EXPIRATION_DAYS)
+    
+    # Log message send attempt (metadata only, no content) per Logging & Observability (#14)
+    logging_service = get_logging_service()
+    if logging_service:
+        logging_service.log_event(
+            LogEventType.MESSAGE_ATTEMPTED,
+            {
+                "message_id": str(message_id),
+                "conversation_id": conversation_id,
+                "sender_id": device_id,
+                "recipient_count": len(recipients),
+                "message_size_bytes": len(encrypted_payload),
+                "timestamp": message_timestamp.isoformat(),
+            },
+        )
+    
+    # Relay message via MessageRelayService (enters PendingDelivery state)
     message_relay = get_message_relay()
     success = message_relay.relay_message(
         sender_id=device_id,
@@ -504,19 +596,28 @@ async def send_message(
     )
     
     if not success:
+        # Log delivery failure (metadata only)
+        if logging_service:
+            logging_service.log_event(
+                LogEventType.DELIVERY_FAILED,
+                {
+                    "message_id": str(message_id),
+                    "conversation_id": conversation_id,
+                    "sender_id": device_id,
+                },
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Backend failure",
         )
     
+    # Return 202 Accepted per API Contracts (#10), Section 3.3
     return JSONResponse(
         content={
+            "status": "accepted",
             "message_id": str(message_id),
-            "status": "queued",
-            "api_version": "v1",
-            "timestamp": utc_now().isoformat(),
         },
-        status_code=status.HTTP_200_OK,
+        status_code=status.HTTP_202_ACCEPTED,
     )
 
 

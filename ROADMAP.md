@@ -461,6 +461,68 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Environment variable documentation (`ENVIRONMENT` for production mode)
 - [x] Local development flow updated with CORS information
 
+## Phase 6.1.6: Implement /api/message/send Endpoint ✅
+
+**Status:** Completed
+
+### Endpoint Implementation
+- [x] POST `/api/message/send` endpoint per API Contracts (#10), Section 3.3
+- [x] Request payload validation:
+  - Required fields: `message_id` (UUID v4), `conversation_id`, `payload`, `timestamp` (ISO 8601)
+  - Optional field: `expiration` (ISO 8601, defaults to timestamp + 7 days)
+  - Payload encoding validation (base64 or hex)
+  - Payload size validation (≤ 50KB per MAX_MESSAGE_PAYLOAD_SIZE_KB)
+- [x] Timestamp validation:
+  - Rejects expired timestamps (with CLOCK_SKEW_TOLERANCE_MINUTES tolerance)
+  - Validates ISO 8601 format
+- [x] Conversation validation:
+  - Checks conversation existence (returns 404 if not found)
+  - Checks conversation state (returns 400 if not ACTIVE)
+  - Derives recipients from conversation participants (excluding sender)
+- [x] Message relay integration:
+  - Calls `MessageRelayService.relay_message()` to register message in delivery state machine
+  - Message enters PendingDelivery state
+  - Forwards to WebSocket recipients or offline queue
+  - ACK timer started (30s timeout)
+- [x] Response handling:
+  - Returns 202 Accepted on success with `{"status": "accepted", "message_id": "<uuid>"}`
+  - Returns 400 Bad Request for validation errors
+  - Returns 404 Not Found for non-existent conversations
+  - Returns 500 Internal Server Error for delivery failures
+- [x] Logging and observability:
+  - Logs message send attempts (metadata only, no content) using LogEventType.MESSAGE_ATTEMPTED
+  - Logs delivery failures using LogEventType.DELIVERY_FAILED
+  - Uses `message_size_bytes` field (not `payload_size_bytes`) to comply with logging service validation
+  - All logging per Logging & Observability (#14), Section 4
+
+### Testing
+- [x] Comprehensive unit tests (15 test cases) in `tests/test_message_send_endpoint.py`:
+  - Successful message send (202 Accepted)
+  - Missing required fields (400 Bad Request)
+  - Invalid message_id format (400 Bad Request)
+  - Expired timestamp (400 Bad Request)
+  - Empty payload (400 Bad Request)
+  - Payload too large (400 Bad Request)
+  - Conversation not found (404 Not Found)
+  - Conversation not active (400 Bad Request)
+  - Sender not a participant (403 Forbidden) - authorization check
+  - Future timestamp beyond clock skew tolerance (400 Bad Request)
+  - Expiration derivation (defaults to timestamp + 7 days)
+  - Logging metadata verification (no content logged)
+  - All validation error cases covered
+
+### Dependencies
+- [x] Added `httpx>=0.24.0,<1.0.0` to `requirements.txt` (required for FastAPI TestClient)
+
+### Security & Code Quality
+- [x] Added authorization check to verify sender is a participant in the conversation (returns 403 if not a participant)
+- [x] Added future timestamp validation to reject timestamps beyond clock skew tolerance (prevents timestamp manipulation)
+- [x] Fixed logging field name (`payload_size_bytes` → `message_size_bytes`) to comply with prohibited key validation
+- [x] Fixed conversation validation order (existence check before state check) for proper status codes
+- [x] Fixed logging service enum usage (LogEventType enum instead of string constants)
+- [x] Fixed type hint in ConversationRegistry.get_conversation_participants() (Optional[Set[str]] → Set[str])
+- [x] Moved inline imports to module top (code style improvement)
+
 ## Phase 6.2: UI/UX Implementation
 
 **Status:** Planned
@@ -568,6 +630,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - **Phase 6.1.3**: ✅ Completed (End-to-End Message Delivery Flow)
 - **Phase 6.1.4**: ✅ Completed (Developer-Facing UX Instrumentation)
 - **Phase 6.1.5**: ✅ Completed (Local Development Connectivity - CORS & WebSocket)
+- **Phase 6.1.6**: ✅ Completed (Implement /api/message/send Endpoint)
 - **Phase 7**: ✅ Completed (Logging & Observability - Core Services)
 - **Phase 2.5**: ✅ Completed (Controller API Endpoints for Provisioning/Revocation)
 - **Phase 6.2**: Next (UI/UX Implementation)
