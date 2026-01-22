@@ -8,19 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Message send endpoint implementation (`POST /api/message/send`)
-  - Accepts message_id, conversation_id, payload, timestamp, and optional expiration from request
-  - Validates required fields (message_id, conversation_id, payload, timestamp)
-  - Rejects expired timestamps (with clock skew tolerance)
+- Message send endpoint implementation (`POST /api/message/send`) per API Contracts (#10), Section 3.3
+  - Request body: `{ conversation_id: string, payload: string, expiration?: ISO timestamp }`
+  - Assigns `message_id` server-side (UUID v4)
+  - Uses server timestamp (not client-provided)
+  - Validates required fields (conversation_id, payload)
+  - Validates device exists and is ACTIVE (returns 403 if inactive)
+  - Validates conversation exists (returns 404 if not found, 400 if inactive)
+  - Validates sender is a participant in the conversation (returns 403 if not)
   - Enforces payload size ≤ 50KB
-  - Enforces conversation state = ACTIVE
-  - Validates conversation existence (returns 404 if not found, 400 if inactive)
+  - Validates expiration is in the future (if provided)
+  - Derives expiration from server timestamp + default expiration days (if not provided)
   - Registers message in delivery state machine (PendingDelivery state)
   - Forwards message to WebSocket recipients or offline queue
-  - Returns 202 Accepted with status and message_id
+  - Returns 202 Accepted with `{ message_id, timestamp, status: "queued" }`
   - Logs metadata only (no message content) per Logging & Observability (#14)
   - Uses LogEventType enum for logging (MESSAGE_ATTEMPTED, DELIVERY_FAILED)
-  - Comprehensive unit tests (13 test cases) covering validation, error cases, and success path
+  - Comprehensive unit tests (11 test cases) covering validation, error cases, and success path
   - Added httpx dependency to requirements.txt (required for FastAPI TestClient)
 - Frontend development server using Vite
   - Vite configuration with React plugin and TypeScript support

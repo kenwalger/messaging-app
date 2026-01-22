@@ -468,13 +468,15 @@ This roadmap outlines the planned development phases for AAM. All implementation
 ### Endpoint Implementation
 - [x] POST `/api/message/send` endpoint per API Contracts (#10), Section 3.3
 - [x] Request payload validation:
-  - Required fields: `message_id` (UUID v4), `conversation_id`, `payload`, `timestamp` (ISO 8601)
-  - Optional field: `expiration` (ISO 8601, defaults to timestamp + 7 days)
+  - Required fields: `conversation_id`, `payload`
+  - Optional field: `expiration` (ISO 8601, defaults to server timestamp + 7 days)
   - Payload encoding validation (base64 or hex)
   - Payload size validation (≤ 50KB per MAX_MESSAGE_PAYLOAD_SIZE_KB)
-- [x] Timestamp validation:
-  - Rejects expired timestamps (with CLOCK_SKEW_TOLERANCE_MINUTES tolerance)
-  - Validates ISO 8601 format
+- [x] Server-side assignment:
+  - Assigns `message_id` server-side (UUID v4)
+  - Uses server timestamp (not client-provided)
+- [x] Device validation:
+  - Validates device exists and is ACTIVE (returns 403 if inactive)
 - [x] Conversation validation:
   - Checks conversation existence (returns 404 if not found)
   - Checks conversation state (returns 400 if not ACTIVE)
@@ -485,7 +487,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
   - Forwards to WebSocket recipients or offline queue
   - ACK timer started (30s timeout)
 - [x] Response handling:
-  - Returns 202 Accepted on success with `{"status": "accepted", "message_id": "<uuid>"}`
+  - Returns 202 Accepted on success with `{"message_id": "<uuid>", "timestamp": "<ISO 8601>", "status": "queued"}`
   - Returns 400 Bad Request for validation errors
   - Returns 404 Not Found for non-existent conversations
   - Returns 500 Internal Server Error for delivery failures
@@ -496,18 +498,17 @@ This roadmap outlines the planned development phases for AAM. All implementation
   - All logging per Logging & Observability (#14), Section 4
 
 ### Testing
-- [x] Comprehensive unit tests (15 test cases) in `tests/test_message_send_endpoint.py`:
-  - Successful message send (202 Accepted)
-  - Missing required fields (400 Bad Request)
-  - Invalid message_id format (400 Bad Request)
-  - Expired timestamp (400 Bad Request)
+- [x] Comprehensive unit tests (11 test cases) in `tests/test_message_send_endpoint.py`:
+  - Successful message send (202 Accepted with server-assigned message_id and timestamp)
+  - Missing conversation_id (400 Bad Request)
+  - Device not active (403 Forbidden)
   - Empty payload (400 Bad Request)
   - Payload too large (400 Bad Request)
   - Conversation not found (404 Not Found)
   - Conversation not active (400 Bad Request)
   - Sender not a participant (403 Forbidden) - authorization check
-  - Future timestamp beyond clock skew tolerance (400 Bad Request)
-  - Expiration derivation (defaults to timestamp + 7 days)
+  - Invalid expiration (past timestamp, 400 Bad Request)
+  - Expiration derivation (defaults to server timestamp + 7 days)
   - Logging metadata verification (no content logged)
   - All validation error cases covered
 
