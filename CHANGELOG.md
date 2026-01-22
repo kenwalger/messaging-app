@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Message send endpoint implementation (`POST /api/message/send`)
+  - Accepts message_id, conversation_id, payload, timestamp, and optional expiration from request
+  - Validates required fields (message_id, conversation_id, payload, timestamp)
+  - Rejects expired timestamps (with clock skew tolerance)
+  - Enforces payload size ≤ 50KB
+  - Enforces conversation state = ACTIVE
+  - Validates conversation existence (returns 404 if not found, 400 if inactive)
+  - Registers message in delivery state machine (PendingDelivery state)
+  - Forwards message to WebSocket recipients or offline queue
+  - Returns 202 Accepted with status and message_id
+  - Logs metadata only (no message content) per Logging & Observability (#14)
+  - Uses LogEventType enum for logging (MESSAGE_ATTEMPTED, DELIVERY_FAILED)
+  - Comprehensive unit tests (13 test cases) covering validation, error cases, and success path
+  - Added httpx dependency to requirements.txt (required for FastAPI TestClient)
 - Frontend development server using Vite
   - Vite configuration with React plugin and TypeScript support
   - Development server runs on `http://localhost:5173` with hot reload
@@ -63,6 +77,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Device auto-provisioning in development mode (devices automatically registered, provisioned, and activated on WebSocket connection)
   - Production mode requires manual device provisioning via Controller API (strict security)
   - Code quality: Narrowed exception handling from broad Exception to specific ValueError (only exception type raised by device registry methods)
+
+### Fixed
+- Message send endpoint logging and validation fixes
+  - Fixed logging field name from `payload_size_bytes` to `message_size_bytes` to comply with logging service prohibited key validation (keys containing "payload" are rejected)
+  - Fixed conversation validation order to check existence before state (ensures proper 404 vs 400 status codes)
+  - Fixed logging service enum usage (changed from string constants to LogEventType enum values to prevent AttributeError)
+  - Updated unit tests to use LogEventType enum for event type assertions
 
 ### Fixed
 - Minimal backend HTTP & WebSocket server for local development
