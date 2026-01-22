@@ -333,11 +333,25 @@ The server will start on `http://127.0.0.1:8000` by default.
 - Health check: `GET /health`
 - Controller API: `POST /api/device/provision`, `POST /api/device/provision/confirm`, `POST /api/device/revoke`
 - Conversation API: `POST /api/conversation/create`, `POST /api/conversation/join`, `POST /api/conversation/leave`, `POST /api/conversation/close`, `GET /api/conversation/info`
+  - `POST /api/conversation/create`: Creates a new conversation
+    - Request body: `{"participants": ["device-001", "device-002"]}` (JSON object with `participants` array)
+    - Automatically includes calling device (from `X-Device-ID` header) in participants if not present
+    - Returns: `{"conversation_id": "<uuid>", "participants": [...], "status": "success"}`
+    - Returns existing conversation if conversation with same ID already exists (idempotent)
+    - Rejects empty participant lists with 400 Bad Request
 - Message API: `POST /api/message/send`, `GET /api/message/receive`
 - Logging API: `POST /api/log/event`
 - WebSocket: `WS /ws/messages` (for real-time message delivery)
 
-The server will start on `http://127.0.0.1:8000` by default.
+#### Environment Variables
+
+- `ENCRYPTION_MODE`: Encryption mode configuration (default: `client`)
+  - `client`: Require hex or base64 encoded encrypted payloads (production mode)
+  - `server`: Accept plaintext payloads, encrypt server-side (dev/POC mode only)
+- `ENCRYPTION_KEY_SEED`: Seed for server-side encryption key (dev/POC mode only, default: `dev-mode-encryption-key-seed`)
+- `ENVIRONMENT`: Environment mode (default: `development`)
+  - `development`, `dev`, `local`: Development mode (permissive CORS, auto-provisioning)
+  - `production`: Production mode (strict CORS, no auto-provisioning)
 
 #### Frontend (UI)
 
@@ -487,7 +501,9 @@ The frontend implements an interactive message send path with optimistic updates
 **API Call:**
 - Frontend calls `POST /api/message/send` with required fields:
   - `conversation_id`: Conversation identifier
-  - `payload`: Encrypted message payload (base64 or hex encoded)
+  - `payload`: Message payload (encoding depends on `ENCRYPTION_MODE`):
+    - `ENCRYPTION_MODE=client` (default/production): Must be hex or base64 encoded encrypted bytes
+    - `ENCRYPTION_MODE=server` (dev/POC only): Can be plaintext; server encrypts before persistence/delivery
   - `expiration`: ISO 8601 timestamp (optional, defaults to server timestamp + 7 days)
 - Backend assigns `message_id` server-side (UUID v4)
 - Backend uses server timestamp (not client-provided)
@@ -499,7 +515,9 @@ The frontend implements an interactive message send path with optimistic updates
     - Timestamp is not expired (with 2-minute clock skew tolerance)
     - Timestamp is not too far in the future (rejects timestamps beyond clock skew tolerance)
   - Payload size ≤ 50KB (enforced per MAX_MESSAGE_PAYLOAD_SIZE_KB constant)
-  - Payload encoding is valid (base64 or hex)
+  - Payload encoding validation:
+    - `ENCRYPTION_MODE=client` (default): Payload must be hex or base64 encoded encrypted bytes
+    - `ENCRYPTION_MODE=server` (dev/POC): Payload can be plaintext; server encrypts before persistence/delivery
   - Conversation exists (returns 404 if not found)
   - Conversation is in ACTIVE state (returns 400 if inactive)
   - **Authorization**: Sender must be a participant in the conversation (returns 403 Forbidden if not a participant)

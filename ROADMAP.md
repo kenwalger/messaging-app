@@ -37,6 +37,9 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Integration with message delivery module
 - [x] Comprehensive unit tests (18 tests, all passing)
 - [x] Conversation lifecycle diagrams (Mermaid)
+- [x] Pydantic request model for conversation creation endpoint (fixes 422 errors)
+- [x] Logging service crash fix (handles both enum and string event types)
+- [x] Defensive error handling for duplicate conversation creation (idempotent behavior)
 
 ## Phase 2: Identity & Provisioning ✅
 

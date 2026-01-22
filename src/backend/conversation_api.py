@@ -145,6 +145,27 @@ class ConversationService:
         if conversation_id is None:
             conversation_id = str(uuid4())
         
+        # Defensive error handling: Check if conversation already exists with this ID
+        if self.conversation_registry.conversation_exists(conversation_id):
+            # Conversation with this ID already exists - return it
+            existing_participants = self.conversation_registry.get_conversation_participants(conversation_id)
+            if self.conversation_registry.is_conversation_active(conversation_id):
+                logger.info(f"Conversation {conversation_id} already exists, returning existing conversation")
+                return {
+                    "status": "success",
+                    "conversation_id": conversation_id,
+                    "participants": list(existing_participants),
+                    "status_code": 200,
+                }
+            else:
+                # Conversation exists but is closed - return error
+                return {
+                    "status": "error",
+                    "error_code": 400,
+                    "message": "Conversation exists but is closed",
+                    "status_code": 400,
+                }
+        
         # Register conversation in registry per Functional Spec (#6), Section 4.1
         success = self.conversation_registry.register_conversation(
             conversation_id=conversation_id,
@@ -156,12 +177,15 @@ class ConversationService:
                 "status": "error",
                 "error_code": 400,
                 "message": "Failed to create conversation",
+                "status_code": 400,
             }
         
         # Log conversation creation per Logging & Observability (#14)
+        # Use string for now since conversation_created is not in LogEventType enum
+        # The logging service now handles strings gracefully
         if self.log_service:
             self.log_service.log_event(
-                "conversation_created",
+                "conversation_created",  # String - logging service will handle it
                 {
                     "conversation_id": conversation_id,
                     "created_by": device_id,
