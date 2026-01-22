@@ -420,63 +420,34 @@ async def send_message(
     
     Sends encrypted message; backend stores payload temporarily for delivery.
     Message enters PendingDelivery state and is forwarded to recipients via WebSocket or offline queue.
-    """
-    # Extract required request fields per API Contracts (#10), Section 3.3
-    message_id_str = request.get("message_id")
-    conversation_id = request.get("conversation_id", "")
-    payload = request.get("payload", "")  # Encrypted payload (base64 or hex string)
-    timestamp_str = request.get("timestamp")  # ISO timestamp string
-    expiration = request.get("expiration")  # ISO timestamp string (optional, derived from timestamp if not provided)
     
-    # Validate required fields
-    if not message_id_str:
+    Request body: { conversation_id: string, payload: string, expiration?: ISO timestamp }
+    Response: { message_id: string, timestamp: ISO timestamp, status: "queued" }
+    """
+    # Validate device exists and is ACTIVE
+    device_registry = get_device_registry()
+    if not device_registry.is_device_active(device_id):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: message_id is required",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Device not active",
         )
     
+    # Extract required request fields per API Contracts (#10), Section 3.3
+    conversation_id = request.get("conversation_id", "")
+    payload = request.get("payload", "")  # Encrypted payload (base64 or hex string)
+    expiration = request.get("expiration")  # ISO timestamp string (optional)
+    
+    # Validate required fields
     if not conversation_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid request: conversation_id is required",
         )
     
-    if not timestamp_str:
+    if not payload:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: timestamp is required",
-        )
-    
-    # Parse and validate message_id
-    try:
-        message_id = UUID(message_id_str)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid message_id: {e}",
-        )
-    
-    # Parse and validate timestamp (reject expired)
-    try:
-        message_timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
-    except (ValueError, AttributeError) as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid timestamp format: {e}",
-        )
-    
-    # Reject expired timestamps and future timestamps (with clock skew tolerance)
-    now = utc_now()
-    clock_skew = timedelta(minutes=CLOCK_SKEW_TOLERANCE_MINUTES)
-    if message_timestamp < now - clock_skew:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: timestamp is expired",
-        )
-    if message_timestamp > now + clock_skew:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: timestamp is too far in the future",
+            detail="Invalid request: payload is required",
         )
     
     # Validate payload is a string
@@ -486,11 +457,17 @@ async def send_message(
             detail="Invalid request: payload must be a string",
         )
     
-    # Validate payload is not empty
-    if not payload:
+    # Assign message_id server-side per API Contracts (#10), Section 3.3
+    message_id = uuid4()
+    
+    # Use server timestamp per API Contracts (#10), Section 3.3
+    message_timestamp = utc_now()
+    
+    # Validate payload is a string
+    if not isinstance(payload, str):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request: payload cannot be empty",
+            detail="Invalid request: payload must be a string",
         )
     
     # Convert payload to bytes (assuming base64 or hex encoding)
@@ -556,17 +533,23 @@ async def send_message(
             detail="Invalid request: no recipients available (conversation has only sender)",
         )
     
-    # Parse expiration timestamp (use provided or derive from timestamp + default expiration)
+    # Parse expiration timestamp (use provided or derive from server timestamp + default expiration)
     if expiration:
         try:
             expiration_timestamp = datetime.fromisoformat(expiration.replace("Z", "+00:00"))
+            # Validate expiration is in the future
+            if expiration_timestamp <= message_timestamp:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid request: expiration must be in the future",
+                )
         except (ValueError, AttributeError) as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid expiration timestamp: {e}",
             )
     else:
-        # Derive expiration from timestamp + default expiration days
+        # Derive expiration from server timestamp + default expiration days
         expiration_timestamp = message_timestamp + timedelta(days=DEFAULT_MESSAGE_EXPIRATION_DAYS)
     
     # Log message send attempt (metadata only, no content) per Logging & Observability (#14)
@@ -611,11 +594,13 @@ async def send_message(
             detail="Backend failure",
         )
     
-    # Return 202 Accepted per API Contracts (#10), Section 3.3
+    # Return response per API Contracts (#10), Section 3.3
+    # Response format: { message_id, timestamp, status }
     return JSONResponse(
         content={
-            "status": "accepted",
             "message_id": str(message_id),
+            "timestamp": message_timestamp.isoformat(),
+            "status": "queued",
         },
         status_code=status.HTTP_202_ACCEPTED,
     )

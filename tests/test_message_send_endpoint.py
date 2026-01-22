@@ -98,19 +98,15 @@ class TestMessageSendEndpoint:
     """Tests for POST /api/message/send endpoint."""
     
     def test_send_message_success(self, client: TestClient) -> None:
-        """Test successful message send returns 202 Accepted."""
-        message_id = str(uuid4())
-        timestamp = utc_now().isoformat()
+        """Test successful message send returns 202 Accepted with server-assigned message_id."""
         expiration = (utc_now() + timedelta(days=7)).isoformat()
         payload = base64.b64encode(b"test message payload").decode("utf-8")
         
         response = client.post(
             "/api/message/send",
             json={
-                "message_id": message_id,
                 "conversation_id": "conv-001",
                 "payload": payload,
-                "timestamp": timestamp,
                 "expiration": expiration,
             },
             headers={"X-Device-ID": "sender-001"},
@@ -118,39 +114,21 @@ class TestMessageSendEndpoint:
         
         assert response.status_code == 202
         data = response.json()
-        assert data["status"] == "accepted"
-        assert data["message_id"] == message_id
-    
-    def test_send_message_missing_message_id(self, client: TestClient) -> None:
-        """Test send message with missing message_id returns 400."""
-        timestamp = utc_now().isoformat()
-        payload = base64.b64encode(b"test message").decode("utf-8")
-        
-        response = client.post(
-            "/api/message/send",
-            json={
-                "conversation_id": "conv-001",
-                "payload": payload,
-                "timestamp": timestamp,
-            },
-            headers={"X-Device-ID": "sender-001"},
-        )
-        
-        assert response.status_code == 400
-        assert "message_id is required" in response.json()["detail"]
+        assert "message_id" in data
+        assert "timestamp" in data
+        assert data["status"] == "queued"
+        # Verify message_id is a valid UUID
+        from uuid import UUID
+        UUID(data["message_id"])  # Will raise ValueError if invalid
     
     def test_send_message_missing_conversation_id(self, client: TestClient) -> None:
         """Test send message with missing conversation_id returns 400."""
-        message_id = str(uuid4())
-        timestamp = utc_now().isoformat()
         payload = base64.b64encode(b"test message").decode("utf-8")
         
         response = client.post(
             "/api/message/send",
             json={
-                "message_id": message_id,
                 "payload": payload,
-                "timestamp": timestamp,
             },
             headers={"X-Device-ID": "sender-001"},
         )
@@ -158,89 +136,42 @@ class TestMessageSendEndpoint:
         assert response.status_code == 400
         assert "conversation_id is required" in response.json()["detail"]
     
-    def test_send_message_missing_timestamp(self, client: TestClient) -> None:
-        """Test send message with missing timestamp returns 400."""
-        message_id = str(uuid4())
+    def test_send_message_device_not_active(self, client: TestClient, device_registry: DeviceRegistry) -> None:
+        """Test send message with inactive device returns 403."""
+        # Register but don't activate device
+        device_registry.register_device("inactive-device", "public-key", "controller-1")
+        # Don't provision or confirm - device remains inactive
+        
         payload = base64.b64encode(b"test message").decode("utf-8")
         
         response = client.post(
             "/api/message/send",
             json={
-                "message_id": message_id,
                 "conversation_id": "conv-001",
                 "payload": payload,
             },
-            headers={"X-Device-ID": "sender-001"},
+            headers={"X-Device-ID": "inactive-device"},
         )
         
-        assert response.status_code == 400
-        assert "timestamp is required" in response.json()["detail"]
-    
-    def test_send_message_expired_timestamp(self, client: TestClient) -> None:
-        """Test send message with expired timestamp returns 400."""
-        message_id = str(uuid4())
-        # Timestamp expired beyond clock skew tolerance
-        expired_timestamp = (
-            utc_now() - timedelta(minutes=CLOCK_SKEW_TOLERANCE_MINUTES + 1)
-        ).isoformat()
-        payload = base64.b64encode(b"test message").decode("utf-8")
-        
-        response = client.post(
-            "/api/message/send",
-            json={
-                "message_id": message_id,
-                "conversation_id": "conv-001",
-                "payload": payload,
-                "timestamp": expired_timestamp,
-            },
-            headers={"X-Device-ID": "sender-001"},
-        )
-        
-        assert response.status_code == 400
-        assert "timestamp is expired" in response.json()["detail"]
-    
-    def test_send_message_invalid_message_id(self, client: TestClient) -> None:
-        """Test send message with invalid message_id format returns 400."""
-        timestamp = utc_now().isoformat()
-        payload = base64.b64encode(b"test message").decode("utf-8")
-        
-        response = client.post(
-            "/api/message/send",
-            json={
-                "message_id": "not-a-uuid",
-                "conversation_id": "conv-001",
-                "payload": payload,
-                "timestamp": timestamp,
-            },
-            headers={"X-Device-ID": "sender-001"},
-        )
-        
-        assert response.status_code == 400
-        assert "Invalid message_id" in response.json()["detail"]
+        assert response.status_code == 403
+        assert "not active" in response.json()["detail"].lower()
     
     def test_send_message_empty_payload(self, client: TestClient) -> None:
         """Test send message with empty payload returns 400."""
-        message_id = str(uuid4())
-        timestamp = utc_now().isoformat()
-        
         response = client.post(
             "/api/message/send",
             json={
-                "message_id": message_id,
                 "conversation_id": "conv-001",
                 "payload": "",
-                "timestamp": timestamp,
             },
             headers={"X-Device-ID": "sender-001"},
         )
         
         assert response.status_code == 400
-        assert "payload cannot be empty" in response.json()["detail"]
+        assert "payload" in response.json()["detail"].lower()
     
     def test_send_message_payload_too_large(self, client: TestClient) -> None:
         """Test send message with payload exceeding 50KB returns 400."""
-        message_id = str(uuid4())
-        timestamp = utc_now().isoformat()
         # Create payload larger than 50KB
         large_payload = b"x" * (MAX_MESSAGE_PAYLOAD_SIZE_KB * 1024 + 1)
         payload = base64.b64encode(large_payload).decode("utf-8")
@@ -248,10 +179,8 @@ class TestMessageSendEndpoint:
         response = client.post(
             "/api/message/send",
             json={
-                "message_id": message_id,
                 "conversation_id": "conv-001",
                 "payload": payload,
-                "timestamp": timestamp,
             },
             headers={"X-Device-ID": "sender-001"},
         )
@@ -265,17 +194,13 @@ class TestMessageSendEndpoint:
         # Close the conversation
         conversation_registry.close_conversation("conv-001")
         
-        message_id = str(uuid4())
-        timestamp = utc_now().isoformat()
         payload = base64.b64encode(b"test message").decode("utf-8")
         
         response = client.post(
             "/api/message/send",
             json={
-                "message_id": message_id,
                 "conversation_id": "conv-001",
                 "payload": payload,
-                "timestamp": timestamp,
             },
             headers={"X-Device-ID": "sender-001"},
         )
@@ -285,17 +210,13 @@ class TestMessageSendEndpoint:
     
     def test_send_message_conversation_not_found(self, client: TestClient) -> None:
         """Test send message to non-existent conversation returns 404."""
-        message_id = str(uuid4())
-        timestamp = utc_now().isoformat()
         payload = base64.b64encode(b"test message").decode("utf-8")
         
         response = client.post(
             "/api/message/send",
             json={
-                "message_id": message_id,
                 "conversation_id": "nonexistent-conv",
                 "payload": payload,
-                "timestamp": timestamp,
             },
             headers={"X-Device-ID": "sender-001"},
         )
@@ -304,18 +225,14 @@ class TestMessageSendEndpoint:
         assert "not found" in response.json()["detail"].lower()
     
     def test_send_message_derives_expiration(self, client: TestClient) -> None:
-        """Test send message without expiration derives from timestamp + default expiration."""
-        message_id = str(uuid4())
-        timestamp = utc_now().isoformat()
+        """Test send message without expiration derives from server timestamp + default expiration."""
         payload = base64.b64encode(b"test message").decode("utf-8")
         
         response = client.post(
             "/api/message/send",
             json={
-                "message_id": message_id,
                 "conversation_id": "conv-001",
                 "payload": payload,
-                "timestamp": timestamp,
                 # No expiration provided
             },
             headers={"X-Device-ID": "sender-001"},
@@ -323,12 +240,12 @@ class TestMessageSendEndpoint:
         
         assert response.status_code == 202
         data = response.json()
-        assert data["status"] == "accepted"
+        assert "message_id" in data
+        assert "timestamp" in data
+        assert data["status"] == "queued"
     
     def test_send_message_logs_metadata(self, client: TestClient, logging_service: LoggingService) -> None:
         """Test send message logs metadata (no content) per Logging & Observability (#14)."""
-        message_id = str(uuid4())
-        timestamp = utc_now().isoformat()
         payload = base64.b64encode(b"test message").decode("utf-8")
         
         # Mock log_event to capture calls
@@ -344,10 +261,8 @@ class TestMessageSendEndpoint:
         response = client.post(
             "/api/message/send",
             json={
-                "message_id": message_id,
                 "conversation_id": "conv-001",
                 "payload": payload,
-                "timestamp": timestamp,
             },
             headers={"X-Device-ID": "sender-001"},
         )
@@ -371,8 +286,6 @@ class TestMessageSendEndpoint:
     
     def test_send_message_sender_not_participant(self, client: TestClient, conversation_registry: ConversationRegistry) -> None:
         """Test send message from non-participant returns 403 Forbidden."""
-        message_id = str(uuid4())
-        timestamp = utc_now().isoformat()
         payload = base64.b64encode(b"test message").decode("utf-8")
         
         # Create conversation with different participants
@@ -384,10 +297,8 @@ class TestMessageSendEndpoint:
         response = client.post(
             "/api/message/send",
             json={
-                "message_id": message_id,
                 "conversation_id": "conv-001",
                 "payload": payload,
-                "timestamp": timestamp,
             },
             headers={"X-Device-ID": "sender-001"},  # sender-001 is not a participant
         )
@@ -395,23 +306,21 @@ class TestMessageSendEndpoint:
         assert response.status_code == 403
         assert "not a participant" in response.json()["detail"].lower()
     
-    def test_send_message_future_timestamp(self, client: TestClient) -> None:
-        """Test send message with future timestamp beyond clock skew tolerance returns 400."""
-        message_id = str(uuid4())
-        # Timestamp too far in the future (beyond clock skew tolerance)
-        future_timestamp = (utc_now() + timedelta(minutes=CLOCK_SKEW_TOLERANCE_MINUTES + 1)).isoformat()
+    def test_send_message_invalid_expiration(self, client: TestClient) -> None:
+        """Test send message with invalid expiration (past timestamp) returns 400."""
         payload = base64.b64encode(b"test message").decode("utf-8")
+        # Expiration in the past
+        past_expiration = (utc_now() - timedelta(days=1)).isoformat()
         
         response = client.post(
             "/api/message/send",
             json={
-                "message_id": message_id,
                 "conversation_id": "conv-001",
                 "payload": payload,
-                "timestamp": future_timestamp,
+                "expiration": past_expiration,
             },
             headers={"X-Device-ID": "sender-001"},
         )
         
         assert response.status_code == 400
-        assert "too far in the future" in response.json()["detail"].lower()
+        assert "expiration" in response.json()["detail"].lower()
