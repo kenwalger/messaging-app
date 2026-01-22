@@ -216,7 +216,7 @@ class ConversationRegistry:
         
         return affected_conversations
     
-    def get_conversation_participants(self, conversation_id: str) -> Optional[Set[str]]:
+    def get_conversation_participants(self, conversation_id: str) -> Set[str]:
         """
         Get participants for a conversation.
         
@@ -224,7 +224,7 @@ class ConversationRegistry:
             conversation_id: Conversation identifier.
         
         Returns:
-            Set of participant device IDs if conversation exists, None otherwise.
+            Set of participant device IDs (empty set if conversation doesn't exist).
         """
         with self._conversation_lock:
             return self._conversation_members.get(conversation_id, set()).copy()

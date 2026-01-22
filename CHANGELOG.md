@@ -79,10 +79,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Code quality: Narrowed exception handling from broad Exception to specific ValueError (only exception type raised by device registry methods)
 
 ### Fixed
-- Message send endpoint logging and validation fixes
+- Message send endpoint security and validation fixes
+  - **Security**: Added authorization check to verify sender is a participant in the conversation before allowing message send (returns 403 Forbidden if not a participant)
+  - **Security**: Added future timestamp validation to reject timestamps beyond clock skew tolerance in the future (prevents timestamp manipulation attacks)
   - Fixed logging field name from `payload_size_bytes` to `message_size_bytes` to comply with logging service prohibited key validation (keys containing "payload" are rejected)
   - Fixed conversation validation order to check existence before state (ensures proper 404 vs 400 status codes)
   - Fixed logging service enum usage (changed from string constants to LogEventType enum values to prevent AttributeError)
+  - Fixed type hint in `ConversationRegistry.get_conversation_participants()` from `Optional[Set[str]]` to `Set[str]` to match implementation (always returns set, never None)
+  - Updated `conversation_api.py` to check for empty set instead of None when checking conversation existence
+  - Moved inline imports to module top (CLOCK_SKEW_TOLERANCE_MINUTES, DEFAULT_MESSAGE_EXPIRATION_DAYS, MAX_MESSAGE_PAYLOAD_SIZE_KB, LogEventType, timedelta)
+  - Added unit tests for authorization check (sender not participant) and future timestamp validation
   - Updated unit tests to use LogEventType enum for event type assertions
 
 ### Fixed

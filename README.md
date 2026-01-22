@@ -495,11 +495,14 @@ The frontend implements an interactive message send path with optimistic updates
 - Backend validates request:
   - Required fields present (message_id, conversation_id, payload, timestamp)
   - Message ID is valid UUID v4
-  - Timestamp is not expired (with 2-minute clock skew tolerance)
+  - Timestamp validation:
+    - Timestamp is not expired (with 2-minute clock skew tolerance)
+    - Timestamp is not too far in the future (rejects timestamps beyond clock skew tolerance)
   - Payload size ≤ 50KB (enforced per MAX_MESSAGE_PAYLOAD_SIZE_KB constant)
+  - Payload encoding is valid (base64 or hex)
   - Conversation exists (returns 404 if not found)
   - Conversation is in ACTIVE state (returns 400 if inactive)
-  - Payload encoding is valid (base64 or hex)
+  - **Authorization**: Sender must be a participant in the conversation (returns 403 Forbidden if not a participant)
 - Backend enqueues message for delivery:
   - Message enters PendingDelivery state
   - Recipients derived from conversation participants (excluding sender)

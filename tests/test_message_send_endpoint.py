@@ -368,3 +368,50 @@ class TestMessageSendEndpoint:
         # Verify no message content in logs
         assert "payload" not in event_data
         assert "content" not in event_data
+    
+    def test_send_message_sender_not_participant(self, client: TestClient, conversation_registry: ConversationRegistry) -> None:
+        """Test send message from non-participant returns 403 Forbidden."""
+        message_id = str(uuid4())
+        timestamp = utc_now().isoformat()
+        payload = base64.b64encode(b"test message").decode("utf-8")
+        
+        # Create conversation with different participants
+        conversation_registry.register_conversation(
+            "conv-001",
+            ["recipient-001", "recipient-002"],  # sender-001 is NOT a participant
+        )
+        
+        response = client.post(
+            "/api/message/send",
+            json={
+                "message_id": message_id,
+                "conversation_id": "conv-001",
+                "payload": payload,
+                "timestamp": timestamp,
+            },
+            headers={"X-Device-ID": "sender-001"},  # sender-001 is not a participant
+        )
+        
+        assert response.status_code == 403
+        assert "not a participant" in response.json()["detail"].lower()
+    
+    def test_send_message_future_timestamp(self, client: TestClient) -> None:
+        """Test send message with future timestamp beyond clock skew tolerance returns 400."""
+        message_id = str(uuid4())
+        # Timestamp too far in the future (beyond clock skew tolerance)
+        future_timestamp = (utc_now() + timedelta(minutes=CLOCK_SKEW_TOLERANCE_MINUTES + 1)).isoformat()
+        payload = base64.b64encode(b"test message").decode("utf-8")
+        
+        response = client.post(
+            "/api/message/send",
+            json={
+                "message_id": message_id,
+                "conversation_id": "conv-001",
+                "payload": payload,
+                "timestamp": future_timestamp,
+            },
+            headers={"X-Device-ID": "sender-001"},
+        )
+        
+        assert response.status_code == 400
+        assert "too far in the future" in response.json()["detail"].lower()

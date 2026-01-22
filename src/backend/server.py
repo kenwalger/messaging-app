@@ -23,7 +23,7 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, AsyncGenerator, Dict, List, Optional
 from uuid import UUID, uuid4
 
@@ -49,12 +49,19 @@ from src.backend.identity_enforcement import IdentityEnforcementService
 from src.backend.logging_service import LoggingService
 from src.backend.message_relay import MessageRelayService
 from src.backend.websocket_manager import FastAPIWebSocketManager
-from src.shared.constants import HEADER_CONTROLLER_KEY, HEADER_DEVICE_ID
+from src.shared.constants import (
+    CLOCK_SKEW_TOLERANCE_MINUTES,
+    DEFAULT_MESSAGE_EXPIRATION_DAYS,
+    HEADER_CONTROLLER_KEY,
+    HEADER_DEVICE_ID,
+    MAX_MESSAGE_PAYLOAD_SIZE_KB,
+)
 from src.shared.controller_types import (
     ConfirmProvisioningRequest,
     ProvisionDeviceRequest,
     RevokeDeviceRequest,
 )
+from src.shared.logging_types import LogEventType
 from src.shared.message_types import utc_now
 
 # Configure logging per Logging & Observability (#14)
@@ -457,14 +464,18 @@ async def send_message(
             detail=f"Invalid timestamp format: {e}",
         )
     
-    # Reject expired timestamps (with clock skew tolerance)
-    from src.shared.constants import CLOCK_SKEW_TOLERANCE_MINUTES
-    from datetime import timedelta
+    # Reject expired timestamps and future timestamps (with clock skew tolerance)
     now = utc_now()
-    if message_timestamp < now - timedelta(minutes=CLOCK_SKEW_TOLERANCE_MINUTES):
+    clock_skew = timedelta(minutes=CLOCK_SKEW_TOLERANCE_MINUTES)
+    if message_timestamp < now - clock_skew:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid request: timestamp is expired",
+        )
+    if message_timestamp > now + clock_skew:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request: timestamp is too far in the future",
         )
     
     # Validate payload is a string
@@ -496,7 +507,6 @@ async def send_message(
             )
     
     # Enforce payload size ≤ 50KB
-    from src.shared.constants import MAX_MESSAGE_PAYLOAD_SIZE_KB
     payload_size_kb = len(encrypted_payload) / 1024
     if payload_size_kb > MAX_MESSAGE_PAYLOAD_SIZE_KB:
         raise HTTPException(
@@ -530,6 +540,13 @@ async def send_message(
             detail="Invalid request: conversation is not active",
         )
     
+    # Authorization check: Verify sender is a participant in the conversation
+    if device_id not in participants:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid request: sender is not a participant in this conversation",
+        )
+    
     # Exclude sender from recipients (they shouldn't receive their own message)
     recipients = [p for p in participants if p != device_id]
     
@@ -550,13 +567,11 @@ async def send_message(
             )
     else:
         # Derive expiration from timestamp + default expiration days
-        from src.shared.constants import DEFAULT_MESSAGE_EXPIRATION_DAYS
         expiration_timestamp = message_timestamp + timedelta(days=DEFAULT_MESSAGE_EXPIRATION_DAYS)
     
     # Log message send attempt (metadata only, no content) per Logging & Observability (#14)
     logging_service = get_logging_service()
     if logging_service:
-        from src.shared.logging_types import LogEventType
         logging_service.log_event(
             LogEventType.MESSAGE_ATTEMPTED,
             {
@@ -583,7 +598,6 @@ async def send_message(
     if not success:
         # Log delivery failure (metadata only)
         if logging_service:
-            from src.shared.logging_types import LogEventType
             logging_service.log_event(
                 LogEventType.DELIVERY_FAILED,
                 {

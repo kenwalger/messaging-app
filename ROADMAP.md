@@ -496,7 +496,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
   - All logging per Logging & Observability (#14), Section 4
 
 ### Testing
-- [x] Comprehensive unit tests (13 test cases) in `tests/test_message_send_endpoint.py`:
+- [x] Comprehensive unit tests (15 test cases) in `tests/test_message_send_endpoint.py`:
   - Successful message send (202 Accepted)
   - Missing required fields (400 Bad Request)
   - Invalid message_id format (400 Bad Request)
@@ -505,6 +505,8 @@ This roadmap outlines the planned development phases for AAM. All implementation
   - Payload too large (400 Bad Request)
   - Conversation not found (404 Not Found)
   - Conversation not active (400 Bad Request)
+  - Sender not a participant (403 Forbidden) - authorization check
+  - Future timestamp beyond clock skew tolerance (400 Bad Request)
   - Expiration derivation (defaults to timestamp + 7 days)
   - Logging metadata verification (no content logged)
   - All validation error cases covered
@@ -512,10 +514,14 @@ This roadmap outlines the planned development phases for AAM. All implementation
 ### Dependencies
 - [x] Added `httpx>=0.24.0,<1.0.0` to `requirements.txt` (required for FastAPI TestClient)
 
-### Code Quality
+### Security & Code Quality
+- [x] Added authorization check to verify sender is a participant in the conversation (returns 403 if not a participant)
+- [x] Added future timestamp validation to reject timestamps beyond clock skew tolerance (prevents timestamp manipulation)
 - [x] Fixed logging field name (`payload_size_bytes` → `message_size_bytes`) to comply with prohibited key validation
 - [x] Fixed conversation validation order (existence check before state check) for proper status codes
 - [x] Fixed logging service enum usage (LogEventType enum instead of string constants)
+- [x] Fixed type hint in ConversationRegistry.get_conversation_participants() (Optional[Set[str]] → Set[str])
+- [x] Moved inline imports to module top (code style improvement)
 
 ## Phase 6.2: UI/UX Implementation
 
