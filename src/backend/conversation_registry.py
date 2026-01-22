@@ -229,6 +229,19 @@ class ConversationRegistry:
         with self._conversation_lock:
             return self._conversation_members.get(conversation_id, set()).copy()
     
+    def conversation_exists(self, conversation_id: str) -> bool:
+        """
+        Check if conversation exists (regardless of state).
+        
+        Args:
+            conversation_id: Conversation identifier.
+        
+        Returns:
+            True if conversation exists in states dict, False otherwise.
+        """
+        with self._conversation_lock:
+            return conversation_id in self._conversation_states
+    
     def is_conversation_active(self, conversation_id: str) -> bool:
         """
         Check if conversation is active.
