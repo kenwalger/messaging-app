@@ -12,6 +12,8 @@
 
 import { MessageApiService } from './messageApi'
 import { MessageViewModel } from '../types'
+import { encryptionModeStore } from './encryptionMode'
+import { encryptMessage, isEncryptionAvailable } from './clientEncryption'
 
 /**
  * HTTP message API service implementation.
@@ -42,9 +44,13 @@ export class HttpMessageApiService implements MessageApiService {
    * 
    * Message enters PENDING state immediately (optimistic update).
    * 
+   * Encryption handling:
+   * - Client mode: Encrypts payload client-side before sending
+   * - Server mode: Sends plaintext (backend encrypts)
+   * 
    * @param conversationId Conversation ID
    * @param senderId Sender device ID (used for X-Device-ID header)
-   * @param content Message content (will be encrypted by backend)
+   * @param content Message content (plaintext)
    * @returns Promise resolving to MessageViewModel in PENDING state
    */
   async sendMessage(
@@ -63,10 +69,43 @@ export class HttpMessageApiService implements MessageApiService {
       throw new Error('Message content cannot be empty')
     }
 
+    // Get current encryption mode
+    const encryptionMode = encryptionModeStore.getMode()
+
+    // Encrypt conditionally based on mode
+    let payload: string
+    if (encryptionMode === 'client') {
+      // Client-side encryption mode: encrypt before sending
+      if (!isEncryptionAvailable()) {
+        throw new Error('Message could not be encrypted. Web Crypto API not available. Not sent.')
+      }
+      
+      try {
+        payload = await encryptMessage(trimmedContent, senderId)
+        
+        // Log for diagnostics
+        if (import.meta.env.DEV) {
+          console.log('[HttpMessageApi] Encryption mode: client, Payload type: encrypted')
+        }
+      } catch (error) {
+        // Encryption failed - throw error to prevent sending plaintext
+        const errorMessage = error instanceof Error ? error.message : 'Message could not be encrypted. Not sent.'
+        throw new Error(errorMessage)
+      }
+    } else {
+      // Server-side encryption mode: send plaintext
+      payload = trimmedContent
+      
+      // Log for diagnostics
+      if (import.meta.env.DEV) {
+        console.log('[HttpMessageApi] Encryption mode: server, Payload type: plaintext')
+      }
+    }
+
     // Prepare request per API Contracts (#10), Section 3.3
     const requestBody = {
       recipients: [], // Backend will determine recipients from conversation
-      payload: trimmedContent, // In production, this would be pre-encrypted
+      payload: payload, // Encrypted (client mode) or plaintext (server mode)
       expiration: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
       conversation_id: conversationId,
     }

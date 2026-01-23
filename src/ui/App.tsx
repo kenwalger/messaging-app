@@ -20,6 +20,8 @@ import { ConversationViewModel, DeviceStateViewModel, MessageViewModel } from ".
 import { MessageApiService } from "./services/messageApi";
 import { MessageHandlerService } from "./services/messageHandler";
 import { MessageTransport, ConnectionStatus } from "./services/messageTransport";
+import { EncryptionMode, encryptionModeStore } from "./services/encryptionMode";
+import { isEncryptionAvailable } from "./services/clientEncryption";
 
 export interface AppProps {
   /**
@@ -86,6 +88,10 @@ export const App: React.FC<AppProps> = ({
   
   // Debug mode toggle for developer-facing metadata
   const [showDebugInfo, setShowDebugInfo] = useState(false);
+  
+  // Encryption mode state (POC only)
+  const [encryptionMode, setEncryptionMode] = useState<EncryptionMode>(encryptionModeStore.getMode());
+  const encryptionAvailable = isEncryptionAvailable(); // Check once, Web Crypto API availability doesn't change
 
   // Message handler service for incoming messages
   const messageHandlerRef = useRef<MessageHandlerService | null>(null);
@@ -174,6 +180,16 @@ export const App: React.FC<AppProps> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messageTransport, deviceState.device_id]); // onMessagesUpdate and initialMessagesByConversation handled via refs
+
+  /**
+   * Subscribe to encryption mode changes.
+   */
+  useEffect(() => {
+    const unsubscribe = encryptionModeStore.subscribe((mode) => {
+      setEncryptionMode(mode);
+    });
+    return unsubscribe;
+  }, []);
 
   /**
    * Periodic cleanup of expired messages.
@@ -300,6 +316,53 @@ export const App: React.FC<AppProps> = ({
             {showDebugInfo ? "Hide" : "Show"}
           </button>
         </div>
+        {/* Encryption mode indicator and toggle (POC only) */}
+        <div className="px-4 py-2 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-gray-500 flex items-center gap-1">
+              🔐 Encryption:
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => encryptionModeStore.setMode('client')}
+                className={`text-xs px-2 py-1 border rounded ${
+                  encryptionMode === 'client'
+                    ? 'bg-blue-50 border-blue-300 text-blue-700'
+                    : 'border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                Client
+              </button>
+              <button
+                onClick={() => encryptionModeStore.setMode('server')}
+                className={`text-xs px-2 py-1 border rounded ${
+                  encryptionMode === 'server'
+                    ? 'bg-orange-50 border-orange-300 text-orange-700'
+                    : 'border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                Server
+              </button>
+            </div>
+          </div>
+          {encryptionMode === 'client' && (
+            <div className="text-xs text-gray-600 mt-1">
+              Messages are encrypted in your browser before being sent.
+            </div>
+          )}
+          {encryptionMode === 'server' && (
+            <div className="text-xs text-orange-600 mt-1">
+              ⚠️ Messages are sent in plaintext and encrypted on the server.
+              <br />
+              Not secure. For development only.
+            </div>
+          )}
+          {encryptionMode === 'client' && !encryptionAvailable && (
+            <div className="text-xs text-red-600 mt-1">
+              ⚠️ Web Crypto API not available. Encryption disabled.
+            </div>
+          )}
+        </div>
         <div className="flex-1 overflow-y-auto">
           <ConversationList
             conversations={conversations}
@@ -329,7 +392,8 @@ export const App: React.FC<AppProps> = ({
                 !deviceState.can_send ||
                 selectedConversation.send_disabled ||
                 connectionStatus === "connecting" ||
-                connectionStatus === "disconnected"
+                connectionStatus === "disconnected" ||
+                (encryptionMode === 'client' && !encryptionAvailable)
               }
               onSendMessage={handleSendMessage}
             />

@@ -17,6 +17,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { HttpMessageApiService } from '../services/httpMessageApi'
 import { MessageViewModel } from '../types'
+import { encryptionModeStore } from '../services/encryptionMode'
 
 describe('Send Path End-to-End', () => {
   const apiBaseUrl = 'http://localhost:8000'
@@ -24,6 +25,9 @@ describe('Send Path End-to-End', () => {
 
   beforeEach(() => {
     messageApi = new HttpMessageApiService(apiBaseUrl)
+    // Set encryption mode to 'server' for tests to avoid encryption complexity
+    // Tests verify the send path behavior, not encryption implementation
+    encryptionModeStore.setMode('server')
     vi.clearAllMocks()
   })
 

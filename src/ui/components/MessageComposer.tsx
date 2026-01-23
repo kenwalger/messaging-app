@@ -93,12 +93,16 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
       if (import.meta.env.DEV) {
         console.error("Failed to send message:", error);
       }
+      
+      // Check if error is encryption-related
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('could not be encrypted')) {
+        // Encryption failed - show user-facing error
+        alert('Message could not be encrypted. Not sent.');
+      }
+      
       // Error handling is done silently; failed state will be updated via delivery subscription
       // The subscription mechanism in handleSendMessage will handle delivery state transitions
-      // Development-only logging for observability (metadata only, no content)
-      if (import.meta.env.DEV) {
-        console.error("Failed to send message:", error);
-      }
     } finally {
       setIsSending(false);
     }
