@@ -69,6 +69,8 @@ heroku buildpacks:add --index 1 heroku/nodejs
 heroku buildpacks:add --index 2 heroku/python
 ```
 
+**Note**: The Node.js buildpack will automatically run `heroku-postbuild` script after installing dependencies (including devDependencies) but before pruning them. This ensures build tools (TypeScript, Vite) are available during the build phase.
+
 ### 4. Deploy Backend
 
 ```bash
@@ -140,10 +142,18 @@ The backend automatically serves frontend static files if `src/ui/dist/` exists:
 - API routes (`/api/*`) and WebSocket (`/ws/*`) handled by FastAPI
 
 **Build Process**:
-- Frontend builds automatically via `postinstall` script in `package.json`
-- Node.js buildpack runs first, builds frontend
+- Frontend builds automatically via `heroku-postbuild` script in `package.json`
+- Node.js buildpack runs first:
+  - Installs all dependencies (including devDependencies)
+  - Runs `heroku-postbuild` script (builds frontend)
+  - Prunes devDependencies after build (production optimization)
 - Python buildpack runs second, starts backend server
 - Backend serves built frontend files from `src/ui/dist/`
+
+**Why `heroku-postbuild` instead of `postinstall`**:
+- `heroku-postbuild` runs after all dependencies are installed (including devDependencies)
+- Build tools (TypeScript, Vite) are available during build phase
+- Heroku prunes devDependencies after build completes (reduces slug size)
 
 **Manual Build** (if needed):
 ```bash
@@ -264,4 +274,4 @@ echo "App URL: https://$(heroku apps:info --json | jq -r '.app.name').herokuapp.
 
 Save as `deploy.sh`, make executable (`chmod +x deploy.sh`), and run: `./deploy.sh`
 
-**Note**: Frontend builds automatically during Heroku deployment via buildpacks.
+**Note**: Frontend builds automatically during Heroku deployment via `heroku-postbuild` script (runs after dependencies are installed, before pruning devDependencies).

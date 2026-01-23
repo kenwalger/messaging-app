@@ -313,7 +313,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Procfile for Heroku backend deployment (uvicorn with --host 0.0.0.0 --port $PORT)
 - [x] .python-version file (Python 3.14.0) for Heroku Python buildpack
 - [x] Multi-buildpack support (Node.js for frontend build, Python for backend)
-- [x] Frontend build integration (postinstall script builds frontend during deployment)
+- [x] Frontend build integration (heroku-postbuild script builds frontend during deployment)
 - [x] Backend static file serving (serves React app from `src/ui/dist/` for single-dyno deployment)
 - [x] CORS configuration for deployed frontend (`FRONTEND_ORIGIN` environment variable)
 - [x] WebSocket support (native Heroku WebSocket support, uses `wss://` for HTTPS)
