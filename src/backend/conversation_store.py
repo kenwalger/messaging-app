@@ -15,6 +15,7 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from datetime import datetime
+from threading import Lock
 from typing import Dict, List, Optional, Set
 from uuid import uuid4
 
@@ -611,8 +612,13 @@ class InMemoryConversationStore(ConversationStore):
         logger.warning("Using in-memory conversation store (state will be lost on restart)")
     
     def get_conversation(self, conversation_id: str) -> Optional[Dict]:
-        """Get conversation from memory."""
-        return self._conversations.get(conversation_id)
+        """Get conversation from memory (thread-safe)."""
+        with self._lock:
+            # Return a copy to prevent external modification
+            conversation = self._conversations.get(conversation_id)
+            if conversation:
+                return conversation.copy()
+            return None
     
     def create_conversation(
         self,
@@ -620,19 +626,20 @@ class InMemoryConversationStore(ConversationStore):
         participants: List[str],
         state: ConversationState = ConversationState.ACTIVE,
     ) -> bool:
-        """Create conversation in memory."""
-        if conversation_id in self._conversations:
-            return False
-        
-        now = datetime.utcnow().isoformat()
-        self._conversations[conversation_id] = {
-            "conversation_id": conversation_id,
-            "participants": participants,
-            "state": state.value,
-            "created_at": now,
-            "last_activity_at": now,
-        }
-        return True
+        """Create conversation in memory (thread-safe)."""
+        with self._lock:
+            if conversation_id in self._conversations:
+                return False
+            
+            now = datetime.utcnow().isoformat()
+            self._conversations[conversation_id] = {
+                "conversation_id": conversation_id,
+                "participants": participants.copy(),  # Copy to prevent external modification
+                "state": state.value,
+                "created_at": now,
+                "last_activity_at": now,
+            }
+            return True
     
     def update_conversation(
         self,
@@ -640,79 +647,89 @@ class InMemoryConversationStore(ConversationStore):
         participants: Optional[List[str]] = None,
         state: Optional[ConversationState] = None,
     ) -> bool:
-        """Update conversation in memory."""
-        if conversation_id not in self._conversations:
-            return False
-        
-        if participants is not None:
-            self._conversations[conversation_id]["participants"] = participants
-        if state is not None:
-            self._conversations[conversation_id]["state"] = state.value
-        self._conversations[conversation_id]["last_activity_at"] = datetime.utcnow().isoformat()
-        return True
+        """Update conversation in memory (thread-safe)."""
+        with self._lock:
+            if conversation_id not in self._conversations:
+                return False
+            
+            if participants is not None:
+                self._conversations[conversation_id]["participants"] = participants.copy()  # Copy to prevent external modification
+            if state is not None:
+                self._conversations[conversation_id]["state"] = state.value
+            self._conversations[conversation_id]["last_activity_at"] = datetime.utcnow().isoformat()
+            return True
     
     def add_participant(
         self,
         conversation_id: str,
         device_id: str,
     ) -> bool:
-        """Add participant to conversation in memory."""
-        if conversation_id not in self._conversations:
-            return False
-        
-        conversation = self._conversations[conversation_id]
-        current_participants = set(conversation["participants"])
-        
-        # Check if already a participant
-        if device_id in current_participants:
+        """Add participant to conversation in memory (thread-safe)."""
+        with self._lock:
+            if conversation_id not in self._conversations:
+                return False
+            
+            conversation = self._conversations[conversation_id]
+            current_participants = set(conversation["participants"])
+            
+            # Check if already a participant
+            if device_id in current_participants:
+                return True
+            
+            # Check group size limit
+            from src.shared.constants import MAX_GROUP_SIZE
+            if len(current_participants) >= MAX_GROUP_SIZE:
+                return False
+            
+            # Check conversation state
+            from src.shared.conversation_types import ConversationState
+            if ConversationState(conversation["state"]) != ConversationState.ACTIVE:
+                return False
+            
+            # Add participant
+            conversation["participants"] = list(current_participants) + [device_id]
+            conversation["last_activity_at"] = datetime.utcnow().isoformat()
             return True
-        
-        # Check group size limit
-        from src.shared.constants import MAX_GROUP_SIZE
-        if len(current_participants) >= MAX_GROUP_SIZE:
-            return False
-        
-        # Add participant
-        conversation["participants"] = list(current_participants) + [device_id]
-        conversation["last_activity_at"] = datetime.utcnow().isoformat()
-        return True
     
     def remove_participant(
         self,
         conversation_id: str,
         device_id: str,
     ) -> bool:
-        """Remove participant from conversation in memory."""
-        if conversation_id not in self._conversations:
-            return False
-        
-        conversation = self._conversations[conversation_id]
-        current_participants = set(conversation["participants"])
-        
-        if device_id not in current_participants:
-            return False
-        
-        # Remove participant
-        new_participants = list(current_participants - {device_id})
-        conversation["participants"] = new_participants
-        conversation["last_activity_at"] = datetime.utcnow().isoformat()
-        
-        # If no participants remain, close conversation
-        if not new_participants:
-            conversation["state"] = ConversationState.CLOSED.value
-        
-        return True
+        """Remove participant from conversation in memory (thread-safe)."""
+        with self._lock:
+            if conversation_id not in self._conversations:
+                return False
+            
+            conversation = self._conversations[conversation_id]
+            current_participants = set(conversation["participants"])
+            
+            if device_id not in current_participants:
+                return False
+            
+            # Remove participant
+            new_participants = list(current_participants - {device_id})
+            conversation["participants"] = new_participants
+            conversation["last_activity_at"] = datetime.utcnow().isoformat()
+            
+            # If no participants remain, close conversation
+            if not new_participants:
+                conversation["state"] = ConversationState.CLOSED.value
+            
+            return True
     
     def delete_conversation(self, conversation_id: str) -> bool:
-        """Delete conversation from memory."""
-        if conversation_id in self._conversations:
-            del self._conversations[conversation_id]
-            return True
-        return False
+        """Delete conversation from memory (thread-safe)."""
+        with self._lock:
+            if conversation_id in self._conversations:
+                del self._conversations[conversation_id]
+                return True
+            return False
     
     def conversation_exists(self, conversation_id: str) -> bool:
-        """Check if conversation exists in memory."""
-        return conversation_id in self._conversations
+        """Check if conversation exists in memory (thread-safe)."""
+        with self._lock:
+            return conversation_id in self._conversations
 
 
 def create_conversation_store(demo_mode: bool = False) -> ConversationStore:
