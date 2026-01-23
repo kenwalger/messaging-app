@@ -17,6 +17,7 @@ import { MessageList } from "./components/MessageList";
 import { MessageComposer } from "./components/MessageComposer";
 import { StatusIndicator } from "./components/StatusIndicator";
 import { ConversationJoin } from "./components/ConversationJoin";
+import { DemoModeBanner } from "./components/DemoModeBanner";
 import { ConversationViewModel, DeviceStateViewModel, MessageViewModel } from "./types";
 import { MessageApiService } from "./services/messageApi";
 import { MessageHandlerService } from "./services/messageHandler";
@@ -98,6 +99,12 @@ export const App: React.FC<AppProps> = ({
   // Connection status for developer-facing indicator
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [isPollingFallback, setIsPollingFallback] = useState(false);
+  
+  // Demo mode detection (from environment variable or window location)
+  // Demo mode allows HTTP-first messaging without WebSocket dependency
+  const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true' || 
+                     import.meta.env.MODE === 'demo' ||
+                     (typeof window !== 'undefined' && window.location.hostname.includes('herokuapp.com'));
   
   // Debug mode toggle for developer-facing metadata
   const [showDebugInfo, setShowDebugInfo] = useState(false);
@@ -313,6 +320,8 @@ export const App: React.FC<AppProps> = ({
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar: Conversation List */}
       <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+        {/* Demo mode banner */}
+        <DemoModeBanner enabled={isDemoMode} />
         <StatusIndicator
           status={deviceState.display_status}
           isReadOnly={deviceState.is_read_only}
@@ -411,8 +420,8 @@ export const App: React.FC<AppProps> = ({
                 deviceState.is_read_only ||
                 !deviceState.can_send ||
                 selectedConversation.send_disabled ||
-                connectionStatus === "connecting" ||
-                connectionStatus === "disconnected" ||
+                // In demo mode, don't block sending based on WebSocket connection status
+                (!isDemoMode && (connectionStatus === "connecting" || connectionStatus === "disconnected")) ||
                 (encryptionMode === 'client' && !encryptionAvailable)
               }
               onSendMessage={handleSendMessage}

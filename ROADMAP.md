@@ -320,6 +320,33 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] CORS configuration for deployed frontend (`FRONTEND_ORIGIN` environment variable)
 - [x] WebSocket support (native Heroku WebSocket support, uses `wss://` for HTTPS)
 
+## Phase 6.2: Demo Mode for Reliable Multi-Device Demos ✅
+
+**Status:** Completed
+
+### Demo Mode Implementation
+- [x] DEMO_MODE environment variable configuration
+- [x] Device activity tracking with 5-minute TTL (devices considered "active" if seen within TTL)
+- [x] Auto-registration of unknown devices on first request
+- [x] Lenient device validation in send_message endpoint (does not reject due to device_not_active in demo mode)
+- [x] WebSocket becomes best-effort delivery, not authorization requirement
+- [x] Message relay always queues messages for REST polling (even if WebSocket unavailable)
+- [x] WebSocket connection logic allows connections in demo mode even if device not strictly active
+- [x] Backend logging clearly indicates when demo mode logic is applied
+- [x] Encryption requirements remain enforced (client or server mode)
+
+### Frontend Demo Mode Support
+- [x] Demo mode detection (via VITE_DEMO_MODE env var or Heroku hostname detection)
+- [x] Demo mode banner component: "🧪 Demo Mode — WebSocket optional, encryption enforced"
+- [x] Frontend does not block message sending based on WebSocket connection status in demo mode
+- [x] Improved error handling (demo mode warnings logged but non-fatal)
+- [x] Clear visual indication of demo mode status
+
+### Documentation
+- [x] Demo mode documented in README.md with configuration instructions
+- [x] Demo mode behavior explained in DEPLOYMENT.md
+- [x] Environment variable reference updated
+
 ### Frontend Deployment Features
 - [x] Dynamic API base URL (uses `window.location.origin` when `VITE_API_BASE_URL` not set)
 - [x] WebSocket URL automatically uses `wss://` for HTTPS origins

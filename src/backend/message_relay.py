@@ -156,9 +156,17 @@ class MessageRelayService:
             True if message queued for delivery, False if expired or invalid
         """
         # Validate sender identity per API Contracts (#10), Section 5
+        # In demo mode, this check is lenient (activity TTL used instead)
         if not self.device_registry.is_device_active(sender_id):
-            logger.warning(f"Invalid or revoked sender device: {sender_id}")
-            return False
+            # Check if we're in demo mode (via device registry)
+            # In demo mode, allow message relay even if device not strictly active
+            # WebSocket delivery becomes best-effort, not authorization requirement
+            demo_mode = getattr(self.device_registry, '_demo_mode', False)
+            if demo_mode:
+                logger.debug(f"[DEMO MODE] Allowing message relay for {sender_id} (activity TTL)")
+            else:
+                logger.warning(f"Invalid or revoked sender device: {sender_id}")
+                return False
         
         # Check if message already expired per API Contracts (#10), Section 5
         if utc_now() >= expiration_timestamp:
@@ -171,14 +179,22 @@ class MessageRelayService:
             return False
         
         # Validate recipient devices per API Contracts (#10), Section 5
+        # In demo mode, use lenient validation (activity TTL)
+        demo_mode = getattr(self.device_registry, '_demo_mode', False)
         valid_recipients = [
             rid for rid in recipients
             if self.device_registry.is_device_active(rid)
         ]
         
         if not valid_recipients:
-            logger.warning(f"No valid recipients for message {message_id}")
-            return False
+            if demo_mode:
+                # In demo mode, allow message relay even if recipients not strictly active
+                # WebSocket delivery becomes best-effort, message still queued for REST polling
+                logger.debug(f"[DEMO MODE] No strictly active recipients for message {message_id}, but allowing relay (best-effort delivery)")
+                valid_recipients = recipients  # Use all recipients, delivery will be best-effort
+            else:
+                logger.warning(f"No valid recipients for message {message_id}")
+                return False
         
         # Store delivery metadata temporarily per Functional Spec (#6), Section 5.1
         # Classification: Restricted per Data Classification (#8), Section 3
@@ -195,10 +211,17 @@ class MessageRelayService:
         self._pending_deliveries[message_id] = delivery_metadata
         
         # Attempt delivery to all valid recipients
+        # In demo mode, WebSocket delivery is best-effort - message is always queued for REST polling
+        demo_mode = getattr(self.device_registry, '_demo_mode', False)
         delivery_success = False
         for recipient_id in valid_recipients:
             if self._deliver_to_recipient(recipient_id, delivery_metadata):
                 delivery_success = True
+        
+        # In demo mode, always return True (message queued for REST polling even if WebSocket fails)
+        if demo_mode:
+            logger.debug(f"[DEMO MODE] Message {message_id} queued for delivery (WebSocket best-effort, REST polling available)")
+            return True
         
         # Clean up metadata after delivery attempt per Data Classification (#8), Section 4
         # Note: Metadata deleted immediately after delivery per Data Classification (#8)

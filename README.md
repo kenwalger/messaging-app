@@ -323,6 +323,7 @@ heroku buildpacks:add --index 2 heroku/python
 heroku config:set ENCRYPTION_MODE=client
 heroku config:set FRONTEND_ORIGIN=https://abiqua-asset-management.herokuapp.com
 heroku config:set ENVIRONMENT=production
+heroku config:set DEMO_MODE=true  # Enable demo mode for reliable multi-device demos
 
 # Deploy
 git push heroku main
@@ -330,16 +331,26 @@ git push heroku main
 
 **Key Features:**
 - Single dyno deployment (backend serves frontend static files)
-- WebSocket support (native Heroku WebSocket support, no polling fallback needed)
+- WebSocket support (native Heroku WebSocket support, best-effort delivery in demo mode)
 - Multi-device support (each browser generates unique device ID, stored in localStorage)
 - Dynamic conversation creation (auto-creates conversation on first load)
 - Join conversation flow (share conversation ID to join from multiple devices)
 - Encryption mode configurable via `ENCRYPTION_MODE` environment variable
+- **Demo Mode**: HTTP-first messaging with lenient device validation (enabled via `DEMO_MODE=true`)
+
+**Demo Mode:**
+Demo mode (`DEMO_MODE=true`) enables reliable multi-device demos on Heroku by:
+- Allowing HTTP-first messaging without WebSocket dependency
+- Auto-registering devices on first request
+- Using device activity TTL (5 minutes) instead of strict active state checks
+- Making WebSocket delivery best-effort (messages always queued for REST polling)
+- Not blocking message sends based on WebSocket connection status
+- Preserving encryption requirements (client or server mode enforced)
 
 **Multi-Device Demo Flow:**
 1. First device opens app → generates unique device ID → auto-creates conversation → displays conversation ID
 2. Second device opens app → generates different device ID → user pastes conversation ID → joins conversation
-3. All devices share same conversation → messages delivered via WebSocket → real-time updates
+3. All devices share same conversation → messages delivered via WebSocket (if available) or REST polling → real-time updates
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions, troubleshooting, and live demo checklist.
 

@@ -127,6 +127,11 @@ export class HttpMessageApiService implements MessageApiService {
       }
 
       const responseData = await response.json()
+      
+      // In demo mode, log demo-mode warnings (non-fatal, message still accepted)
+      if (responseData.demo_mode_warning && import.meta.env.DEV) {
+        console.log(`[Demo Mode] ${responseData.demo_mode_warning}`)
+      }
 
       // Create message in PENDING state (optimistic update)
       const now = new Date()
