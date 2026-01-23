@@ -121,12 +121,17 @@ export class HttpMessageApiService implements MessageApiService {
         body: JSON.stringify(requestBody),
       })
 
+      // In demo mode, treat HTTP 200/202 as success (message accepted)
+      // WebSocket failures don't block message acceptance
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`)
       }
 
       const responseData = await response.json()
+      
+      // HTTP 200/202 means message was accepted and queued
+      // In demo mode, this is always success (WebSocket optional)
       
       // In demo mode, log demo-mode warnings (non-fatal, message still accepted)
       if (responseData.demo_mode_warning && import.meta.env.DEV) {

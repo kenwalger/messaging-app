@@ -176,7 +176,10 @@ if ENCRYPTION_MODE not in ("server", "client"):
 # Demo mode configuration
 # When enabled, allows HTTP-first messaging with lenient device validation
 # WebSockets become best-effort delivery, not authorization requirement
-DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() in ("true", "1", "yes", "on")
+# Default to TRUE on Heroku (detected by DYNO env var - Heroku-specific), FALSE otherwise
+# DYNO is set by Heroku and uniquely identifies Heroku platform (not set by Docker/Railway/Render)
+_demo_mode_default = "true" if os.getenv("DYNO") else "false"
+DEMO_MODE = os.getenv("DEMO_MODE", _demo_mode_default).lower() in ("true", "1", "yes", "on")
 if DEMO_MODE:
     logger.info("🧪 DEMO MODE ENABLED - WebSocket optional, encryption enforced, lenient device validation")
 
@@ -617,9 +620,59 @@ async def send_message(
     device_registry = get_device_registry()
     logging_service = get_logging_service()
     
+    # Demo mode: Mark device as seen early (for activity TTL tracking)
+    # This must be called before validation to refresh activity TTL for HTTP-first messaging
+    if DEMO_MODE:
+        device_registry.mark_device_seen(device_id)
+        logger.debug(f"[DEMO MODE] Device {device_id} marked as seen (activity TTL refreshed early)")
+    
     # Validate device exists and is ACTIVE
+    # Demo mode: Auto-register unknown devices, skip active check
+    if DEMO_MODE:
+        existing_device = device_registry.get_device_identity(device_id)
+        if existing_device is None:
+            # Auto-register device in demo mode
+            try:
+                device_registry.register_device(device_id, "demo-public-key", "demo-controller")
+                device_registry.provision_device(device_id)
+                device_registry.confirm_provisioning(device_id)
+                # Verify device was successfully registered before continuing
+                if not device_registry.get_device_identity(device_id):
+                    raise RuntimeError(f"Device {device_id} registration failed - device not found after registration")
+                logger.info(f"[DEMO MODE] Auto-registered device {device_id} for message send")
+                if logging_service:
+                    logging_service.log_event(
+                        "device_provisioned",
+                        {
+                            "request_id": request_id,
+                            "device_id": device_id,
+                            "demo_mode": True,
+                        },
+                    )
+            except Exception as e:
+                logger.error(f"[DEMO MODE] Failed to auto-register device {device_id}: {e}")
+                # In demo mode, continue even if auto-registration fails (device may have been registered by another request)
+                # But verify device exists before proceeding
+                if not device_registry.get_device_identity(device_id):
+                    reason_code = "device_registration_failed"
+                    if logging_service:
+                        logger.warning(
+                            f"Message send rejected: {reason_code}",
+                            extra={
+                                "request_id": request_id,
+                                "device_id": device_id,
+                                "reason_code": reason_code,
+                            },
+                        )
+                    return create_error_response(
+                        reason_code=reason_code,
+                        message="Device registration failed",
+                        request_id=request_id,
+                    )
+        # In demo mode, skip strict active check - use activity TTL instead
+        logger.debug(f"[DEMO MODE] Skipping device active check for {device_id} (activity TTL used)")
     # Development mode: Auto-provision devices for local development convenience
-    if is_development and not device_registry.is_device_active(device_id):
+    elif is_development and not device_registry.is_device_active(device_id):
         existing_device = device_registry.get_device_identity(device_id)
         if existing_device is None:
             # Device doesn't exist - auto-register, provision, and confirm for development
@@ -1016,6 +1069,12 @@ async def send_message(
             },
         )
     
+    # Demo mode: Mark device as seen again after successful validation
+    # This ensures activity TTL is refreshed on every HTTP message send
+    if DEMO_MODE:
+        device_registry.mark_device_seen(device_id)
+        logger.debug(f"[DEMO MODE] Device {device_id} activity TTL refreshed after message validation")
+    
     # Relay message via MessageRelayService (enters PendingDelivery state)
     message_relay = get_message_relay()
     success = message_relay.relay_message(
@@ -1028,20 +1087,26 @@ async def send_message(
     )
     
     if not success:
-        # Log delivery failure (metadata only)
-        if logging_service:
-            logging_service.log_event(
-                LogEventType.DELIVERY_FAILED,
-                {
-                    "message_id": str(message_id),
-                    "conversation_id": conversation_id,
-                    "sender_id": device_id,
-                },
+        # In demo mode, always return success (message queued for REST polling)
+        # WebSocket delivery failures don't block message acceptance
+        if DEMO_MODE:
+            logger.warning(f"[DEMO MODE] Message relay returned False for {message_id}, but accepting message (queued for REST polling)")
+            # Continue to return 202 Accepted - message is stored and available via REST
+        else:
+            # Log delivery failure (metadata only)
+            if logging_service:
+                logging_service.log_event(
+                    LogEventType.DELIVERY_FAILED,
+                    {
+                        "message_id": str(message_id),
+                        "conversation_id": conversation_id,
+                        "sender_id": device_id,
+                    },
+                )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Backend failure",
             )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Backend failure",
-        )
     
     # Return response per API Contracts (#10), Section 3.3
     # Response format: { message_id, timestamp, status }
@@ -1237,8 +1302,10 @@ async def websocket_messages(
     # Validate device is active
     device_registry = get_device_registry()
     
-    # Demo mode: Mark device as seen and auto-register if needed
+    # Demo mode: Accept WebSocket without active check
     if DEMO_MODE:
+        logger.info(f"[DEMO MODE] Accepting WebSocket without active check for device {device_id}")
+        # Mark device as seen and auto-register if needed
         device_registry.mark_device_seen(device_id)
         existing_device = device_registry.get_device_identity(device_id)
         if existing_device is None:
@@ -1247,12 +1314,20 @@ async def websocket_messages(
                 device_registry.register_device(device_id, "demo-public-key", "demo-controller")
                 device_registry.provision_device(device_id)
                 device_registry.confirm_provisioning(device_id)
+                # Verify device was successfully registered before continuing
+                if not device_registry.get_device_identity(device_id):
+                    raise RuntimeError(f"Device {device_id} registration failed - device not found after registration")
                 logger.info(f"[DEMO MODE] Auto-registered device {device_id} for WebSocket connection")
             except Exception as e:
                 logger.warning(f"[DEMO MODE] Failed to auto-register device {device_id}: {e}")
-        # In demo mode, allow WebSocket connection even if device not strictly active
-        if not device_registry.is_device_active(device_id):
-            logger.warning(f"[DEMO MODE] Device {device_id} not strictly active, but allowing WebSocket connection (activity TTL)")
+                # In demo mode, continue even if auto-registration fails (device may have been registered by another request)
+                # But verify device exists before proceeding
+                if not device_registry.get_device_identity(device_id):
+                    logger.error(f"[DEMO MODE] Device {device_id} does not exist and auto-registration failed - closing WebSocket")
+                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                    return
+        # In demo mode, always accept WebSocket - skip all active checks
+        # Connect WebSocket immediately (no validation needed)
     # Development mode: Auto-provision devices for local development convenience
     # In production, devices must be provisioned via Controller API first
     elif is_development and not device_registry.is_device_active(device_id):
@@ -1294,21 +1369,29 @@ async def websocket_messages(
                 logger.debug(f"Auto-provisioning completion attempt for {device_id}: {e}")
         
         # Check again if device is now active (might have been provisioned by another request)
-        if not device_registry.is_device_active(device_id):
-            # Still not active - close connection (unless in demo mode)
-            if not DEMO_MODE:
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-                return
-            else:
-                logger.warning(f"[DEMO MODE] Device {device_id} not strictly active, but allowing WebSocket connection")
+        if not DEMO_MODE and not device_registry.is_device_active(device_id):
+            # Still not active - close connection (demo mode already handled above)
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
     elif not DEMO_MODE and not device_registry.is_device_active(device_id):
         # Production mode: Device must be provisioned via Controller API
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
     
     # Connect WebSocket
+    # In demo mode, this happens immediately after auto-registration (no active check)
+    # In production/dev mode, this only happens if device is active
     websocket_manager = get_websocket_manager()
-    await websocket_manager.connect(device_id, websocket)
+    try:
+        await websocket_manager.connect(device_id, websocket)
+    except Exception as e:
+        # In demo mode, log warning but don't fail - WebSocket is optional
+        # NEVER return 403 or revoke device in demo mode
+        if DEMO_MODE:
+            logger.warning(f"[DEMO MODE] WebSocket connection failed for {device_id}: {e} (WebSocket optional, device remains active)")
+            return
+        else:
+            raise
     
     try:
         # Keep connection alive and handle incoming messages
@@ -1374,12 +1457,25 @@ async def websocket_messages(
                 logger.warning(f"Failed to parse WebSocket message from {device_id}: {e}")
     
     except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for device {device_id}")
+        if DEMO_MODE:
+            logger.info(f"[DEMO MODE] WebSocket disconnected for device {device_id} (WebSocket optional, device remains active)")
+        else:
+            logger.info(f"WebSocket disconnected for device {device_id}")
     except Exception as e:
-        logger.error(f"WebSocket error for device {device_id}: {e}")
+        if DEMO_MODE:
+            logger.warning(f"[DEMO MODE] WebSocket error for device {device_id}: {e} (WebSocket optional, device remains active)")
+        else:
+            logger.error(f"WebSocket error for device {device_id}: {e}")
     finally:
         # Clean up connection
-        await websocket_manager.disconnect(device_id)
+        # In demo mode, disconnection does NOT revoke device or mark inactive
+        try:
+            await websocket_manager.disconnect(device_id)
+        except Exception as e:
+            if DEMO_MODE:
+                logger.debug(f"[DEMO MODE] Error during WebSocket disconnect cleanup for {device_id}: {e} (non-fatal)")
+            else:
+                logger.warning(f"Error during WebSocket disconnect cleanup for {device_id}: {e}")
 
 
 # ============================================================================

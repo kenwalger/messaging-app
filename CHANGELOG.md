@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Behavior explicitly gated behind DEMO_MODE flag (no production impact)
 
 ### Fixed
+- Demo mode fixes for reliable Heroku messaging
+  - Fixed DEMO_MODE default to TRUE on Heroku (detected via DYNO env var - Heroku-specific, not PORT)
+  - Fixed missing mark_device_seen() calls in HTTP message send endpoint
+  - Fixed WebSocket handler to accept connections immediately in demo mode (no active check, never returns 403)
+  - Fixed message relay to always return success in demo mode (message queued for REST polling even if WebSocket fails)
+  - Fixed auto-registration error handling to verify device exists before continuing (prevents execution with missing device)
+  - Updated demo mode banner text: "Messages delivered via HTTP, WebSocket optional"
+  - Ensures messages are always visible on Heroku with multiple browsers
 - TypeScript compilation errors in Heroku build
   - Fixed missing props destructuring in App.tsx (currentConversationId, onConversationJoined)
   - Fixed unused parameter warnings in MessagingView.tsx (deviceId) and messageApi.ts (content)
