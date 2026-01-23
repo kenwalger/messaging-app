@@ -93,17 +93,22 @@ export const App: React.FC<AppProps> = ({
   );
   
   // Sync selectedConversationId with currentConversationId when it changes (e.g., after joining)
+  // Use functional update to avoid including selectedConversationId in dependency array
   useEffect(() => {
-    if (currentConversationId && currentConversationId !== selectedConversationId) {
+    if (currentConversationId) {
       // Check if the conversation exists in the conversations list
       const conversationExists = conversations.some(
         (c) => c.conversation_id === currentConversationId
       )
       if (conversationExists) {
-        setSelectedConversationId(currentConversationId)
+        // Use functional update to check current state before updating
+        setSelectedConversationId((prev) => {
+          // Only update if different to avoid unnecessary re-renders
+          return prev !== currentConversationId ? currentConversationId : prev
+        })
       }
     }
-  }, [currentConversationId, conversations, selectedConversationId])
+  }, [currentConversationId, conversations]) // Removed selectedConversationId from deps
 
   const [messagesByConversation, setMessagesByConversation] = useState<
     Record<string, MessageViewModel[]>
