@@ -585,7 +585,7 @@ async def get_conversation_info(
 
 @app.post("/api/message/send")
 async def send_message(
-    request: Dict[str, Any],
+    request_body: Request,
     device_id: str = Depends(get_device_id),
 ) -> JSONResponse:
     """
@@ -734,9 +734,11 @@ async def send_message(
         logger.warning(f"[DEMO MODE] Device {device_id} not in Active state, but allowing message send (activity TTL)")
     
     # Extract required request fields per API Contracts (#10), Section 3.3
-    conversation_id = request.get("conversation_id", "")
-    payload = request.get("payload", "")  # Encrypted payload (base64 or hex string)
-    expiration = request.get("expiration")  # ISO timestamp string (optional)
+    # Request body: { conversation_id: string, payload: string, expiration?: ISO timestamp }
+    request_data = await request_body.json()
+    conversation_id = request_data.get("conversation_id", "")
+    payload = request_data.get("payload", "")  # Encrypted payload (base64 or hex string)
+    expiration = request_data.get("expiration")  # ISO timestamp string (optional)
     
     # Validation check 1: conversation_id_required
     if not conversation_id:
