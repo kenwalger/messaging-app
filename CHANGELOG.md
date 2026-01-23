@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frontend banner warning when demo mode auto-creates conversations
 
 ### Fixed
+- Critical: Missing `import copy` in conversation_store.py (would cause NameError at runtime)
 - Thread-safety improvements in InMemoryConversationStore
   - Added Lock initialization in `__init__()` for thread-safe concurrent access to in-memory store
   - All methods (get, create, update, add_participant, remove_participant, delete, exists) now use locks

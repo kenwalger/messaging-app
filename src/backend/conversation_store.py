@@ -10,11 +10,12 @@ References:
 - Logging & Observability (#14)
 """
 
+import copy
 import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import UTC, datetime
 from threading import Lock
 from typing import Dict, List, Optional, Set
 from uuid import uuid4
@@ -284,7 +285,7 @@ class RedisConversationStore(ConversationStore):
             if self._redis_client.exists(key):
                 return False
             
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(UTC).isoformat()
             data = {
                 "conversation_id": conversation_id,
                 "participants": participants,
@@ -357,7 +358,7 @@ class RedisConversationStore(ConversationStore):
                     existing["participants"] = participants
                 if state is not None:
                     existing["state"] = state.value
-                existing["last_activity_at"] = datetime.utcnow().isoformat()
+                existing["last_activity_at"] = datetime.now(UTC).isoformat()
                 
                 # Atomic update with preserved TTL using MULTI/EXEC transaction
                 pipe = self._redis_client.pipeline()
@@ -475,7 +476,7 @@ class RedisConversationStore(ConversationStore):
                 # Add participant
                 new_participants = list(current_participants) + [device_id]
                 existing["participants"] = new_participants
-                existing["last_activity_at"] = datetime.utcnow().isoformat()
+                existing["last_activity_at"] = datetime.now(UTC).isoformat()
                 
                 # Handle TTL
                 if remaining_ttl == -1:
@@ -556,7 +557,7 @@ class RedisConversationStore(ConversationStore):
                 # Remove participant
                 new_participants = list(current_participants - {device_id})
                 existing["participants"] = new_participants
-                existing["last_activity_at"] = datetime.utcnow().isoformat()
+                existing["last_activity_at"] = datetime.now(UTC).isoformat()
                 
                 # If no participants remain, close conversation
                 if not new_participants:
@@ -633,7 +634,7 @@ class InMemoryConversationStore(ConversationStore):
             if conversation_id in self._conversations:
                 return False
             
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(UTC).isoformat()
             self._conversations[conversation_id] = {
                 "conversation_id": conversation_id,
                 "participants": participants.copy(),  # Copy to prevent external modification
@@ -658,7 +659,7 @@ class InMemoryConversationStore(ConversationStore):
                 self._conversations[conversation_id]["participants"] = participants.copy()  # Copy to prevent external modification
             if state is not None:
                 self._conversations[conversation_id]["state"] = state.value
-            self._conversations[conversation_id]["last_activity_at"] = datetime.utcnow().isoformat()
+            self._conversations[conversation_id]["last_activity_at"] = datetime.now(UTC).isoformat()
             return True
     
     def add_participant(
@@ -690,7 +691,7 @@ class InMemoryConversationStore(ConversationStore):
             
             # Add participant
             conversation["participants"] = list(current_participants) + [device_id]
-            conversation["last_activity_at"] = datetime.utcnow().isoformat()
+            conversation["last_activity_at"] = datetime.now(UTC).isoformat()
             return True
     
     def remove_participant(
@@ -712,7 +713,7 @@ class InMemoryConversationStore(ConversationStore):
             # Remove participant
             new_participants = list(current_participants - {device_id})
             conversation["participants"] = new_participants
-            conversation["last_activity_at"] = datetime.utcnow().isoformat()
+            conversation["last_activity_at"] = datetime.now(UTC).isoformat()
             
             # If no participants remain, close conversation
             if not new_participants:
