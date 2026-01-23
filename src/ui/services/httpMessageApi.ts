@@ -113,8 +113,21 @@ export class HttpMessageApiService implements MessageApiService {
     }
     
     // Validate conversation_id is present before sending
-    if (!conversationId) {
-      throw new Error('conversation_id is required but was not provided')
+    if (!conversationId || !conversationId.trim()) {
+      const error = 'conversation_id is required but was not provided'
+      if (import.meta.env.DEV) {
+        console.error('[HttpMessageApi]', error, { conversationId })
+      }
+      throw new Error(error)
+    }
+    
+    // Log request details for debugging (development only)
+    if (import.meta.env.DEV) {
+      console.log('[HttpMessageApi] Sending message:', {
+        conversation_id: conversationId,
+        payload_length: payload.length,
+        encryption_mode: encryptionMode,
+      })
     }
 
     try {
@@ -132,7 +145,21 @@ export class HttpMessageApiService implements MessageApiService {
       // WebSocket failures don't block message acceptance
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`)
+        const errorMessage = errorData.message || `HTTP ${response.status}: ${response.statusText}`
+        const errorCode = errorData.error_code || 'unknown_error'
+        
+        // Log detailed error for debugging (development only)
+        if (import.meta.env.DEV) {
+          console.error('[HttpMessageApi] Message send failed:', {
+            status: response.status,
+            error_code: errorCode,
+            message: errorMessage,
+            conversation_id: conversationId,
+            request_id: errorData.request_id,
+          })
+        }
+        
+        throw new Error(errorMessage)
       }
 
       const responseData = await response.json()
