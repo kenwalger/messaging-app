@@ -409,8 +409,10 @@ The server will start on `http://127.0.0.1:8000` by default.
   - If not set and `DEMO_MODE=true`: Falls back to in-memory store (state lost on restart)
   - If not set and `DEMO_MODE=false`: Raises error (Redis required for production)
   - Automatically detected from Heroku Redis addon
+  - Connection status cached to minimize latency (no per-operation pings)
 - `CONVERSATION_TTL_SECONDS`: Time-to-live for conversations in Redis (default: 1800 seconds / 30 minutes)
   - Conversations automatically expire after TTL
+  - TTL preserved on updates (does not reset to full duration)
   - Configurable for different retention policies
   - `development`, `dev`, `local`: Development mode (permissive CORS, auto-provisioning)
   - `production`: Production mode (strict CORS, no auto-provisioning)

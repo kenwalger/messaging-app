@@ -140,6 +140,14 @@ export class HttpMessageApiService implements MessageApiService {
         body: JSON.stringify(requestBody),
       })
 
+      // Check for demo mode auto-create header from backend (check for both success and error responses)
+      const autoCreateHeader = response.headers.get('X-Demo-Mode-Auto-Create')
+      if (autoCreateHeader === 'true') {
+        // Set flag for demo mode banner
+        localStorage.setItem('demo_mode_auto_create', 'true')
+        console.log('[HttpMessageApi] Demo mode: Conversation was auto-created by backend')
+      }
+      
       // In demo mode, treat HTTP 200/202 as success (message accepted)
       // WebSocket failures don't block message acceptance
       if (!response.ok) {
@@ -155,14 +163,6 @@ export class HttpMessageApiService implements MessageApiService {
           conversation_id: conversationId,
           request_id: errorData.request_id,
         })
-        
-        // Check if this is a demo_mode_auto_create scenario
-        // Backend may have auto-created the conversation, so we should retry
-        if (errorCode === 'conversation_not_found' && import.meta.env.VITE_DEMO_MODE === 'true') {
-          // Set flag for demo mode banner
-          localStorage.setItem('demo_mode_auto_create', 'true')
-          console.log('[HttpMessageApi] Demo mode: Conversation may be auto-created on retry')
-        }
         
         throw new Error(errorMessage)
       }

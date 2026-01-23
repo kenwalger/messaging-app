@@ -18,6 +18,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced logging for Redis connection status and conversation operations
   - Demo mode auto-creation of conversations in Redis when not found
   - Frontend banner warning when demo mode auto-creates conversations
+
+### Fixed
+- Redis conversation store TTL handling improvements
+  - Fixed TTL reset behavior: updates now preserve remaining TTL instead of resetting to full duration
+  - Prevents unexpected expiration timing when conversations are updated frequently
+  - Uses Redis TTL command to get remaining time before updating
+- Participant cache synchronization with Redis TTL expiration
+  - Fixed cache staleness: `get_conversation_participants()` always reads from store to ensure consistency
+  - Added cache invalidation when conversations expire or are deleted
+  - `handle_participant_revocation()` validates conversation existence before removal (handles TTL expiration)
+  - Cache is updated when conversations exist, but always verified against store
+- Redis connection latency optimization
+  - Removed per-operation Redis ping calls (was adding latency overhead)
+  - Connection status cached, only marked as lost on actual errors
+  - Added separate `_check_connection()` method for explicit health checks (startup only)
+  - Redis client exceptions properly caught and connection marked as lost
+- Demo mode detection API improvements
+  - Added public `is_demo_mode()` method to DeviceRegistry (replaces unsafe private attribute access)
+  - Updated conversation_api.py to use proper API instead of `getattr(..., '_demo_mode')`
+- Frontend demo mode banner integration
+  - Fixed dead code: replaced polling with storage event listener for efficiency
+  - Backend now sets `X-Demo-Mode-Auto-Create` header in responses when auto-creating conversations
+  - Frontend checks header and sets localStorage flag (no more polling every second)
+  - Banner listens to storage events for real-time updates
 - Demo Mode for reliable Heroku multi-device demos
   - DEMO_MODE environment variable enables HTTP-first messaging
   - Device activity tracking with 5-minute TTL (devices considered "active" if seen within TTL)

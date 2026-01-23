@@ -31,7 +31,7 @@ export const DemoModeBanner: React.FC<DemoModeBannerProps> = ({ enabled }) => {
     }
 
     // Check for demo_mode_auto_create flag in localStorage
-    // This is set when backend auto-creates a conversation
+    // This is set by httpMessageApi when backend returns X-Demo-Mode-Auto-Create header
     const checkForAutoCreate = () => {
       const autoCreated = localStorage.getItem('demo_mode_auto_create')
       if (autoCreated === 'true') {
@@ -44,11 +44,18 @@ export const DemoModeBanner: React.FC<DemoModeBannerProps> = ({ enabled }) => {
       }
     }
 
-    // Check periodically for auto-create events
-    const interval = setInterval(checkForAutoCreate, 1000)
-    checkForAutoCreate() // Check immediately
+    // Check on mount and when localStorage changes (via storage event)
+    checkForAutoCreate()
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'demo_mode_auto_create' && e.newValue === 'true') {
+        checkForAutoCreate()
+      }
+    }
+    window.addEventListener('storage', handleStorageChange)
     
-    return () => clearInterval(interval)
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+    }
   }, [enabled])
 
   if (!enabled) {

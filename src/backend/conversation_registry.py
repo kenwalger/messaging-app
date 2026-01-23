@@ -57,9 +57,10 @@ class ConversationRegistry:
             self.store = conversation_store
         
         # In-memory cache for participant index (for efficient lookup)
-        # This is rebuilt from store on access
+        # Cache is invalidated when conversations are updated/deleted to prevent staleness
         self._participant_conversations: Dict[str, Set[str]] = {}  # device_id -> set of conversation_ids
         self._participant_lock = Lock()
+        self._cache_invalidated = False  # Flag to track cache staleness
     
     def register_conversation(
         self,
@@ -244,13 +245,18 @@ class ConversationRegistry:
         affected_conversations: List[str] = []
         
         # Get all conversations for this participant from cache
-        # Note: This cache may be incomplete, but it's the best we can do without scanning all conversations
+        # Note: Cache may be incomplete if conversations expired, but we validate existence before removal
         with self._participant_lock:
             conversation_ids = list(self._participant_conversations.get(device_id, set()))
         
         for conversation_id in conversation_ids:
-            if self.remove_participant(conversation_id, device_id):
-                affected_conversations.append(conversation_id)
+            # Verify conversation still exists before attempting removal (handles TTL expiration)
+            if self.store.conversation_exists(conversation_id):
+                if self.remove_participant(conversation_id, device_id):
+                    affected_conversations.append(conversation_id)
+            else:
+                # Conversation expired or deleted - remove from cache
+                self._invalidate_participant_cache_for_conversation(conversation_id)
         
         return affected_conversations
     
@@ -258,16 +264,41 @@ class ConversationRegistry:
         """
         Get participants for a conversation.
         
+        Always reads from store to ensure consistency (avoids stale cache after TTL expiration).
+        
         Args:
             conversation_id: Conversation identifier.
         
         Returns:
             Set of participant device IDs (empty set if conversation doesn't exist).
         """
+        # Always read from store to avoid stale cache after Redis TTL expiration
         conversation = self.store.get_conversation(conversation_id)
         if conversation:
-            return set(conversation["participants"])
-        return set()
+            participants = set(conversation["participants"])
+            # Update cache if conversation exists (for efficient revocation handling)
+            with self._participant_lock:
+                for participant_id in participants:
+                    if participant_id not in self._participant_conversations:
+                        self._participant_conversations[participant_id] = set()
+                    self._participant_conversations[participant_id].add(conversation_id)
+            return participants
+        else:
+            # Conversation doesn't exist (may have expired) - invalidate cache entries
+            self._invalidate_participant_cache_for_conversation(conversation_id)
+            return set()
+    
+    def _invalidate_participant_cache_for_conversation(self, conversation_id: str) -> None:
+        """
+        Invalidate participant cache entries for a conversation.
+        
+        Called when a conversation is deleted or expires to prevent stale cache.
+        """
+        with self._participant_lock:
+            for participant_id in list(self._participant_conversations.keys()):
+                self._participant_conversations[participant_id].discard(conversation_id)
+                if not self._participant_conversations[participant_id]:
+                    del self._participant_conversations[participant_id]
     
     def conversation_exists(self, conversation_id: str) -> bool:
         """

@@ -165,7 +165,7 @@ class RedisConversationStore(ConversationStore):
                 # Test connection
                 self._redis_client.ping()
                 self._connected = True
-                logger.info(f"Redis conversation store connected: {self.redis_url[:20]}...")
+                logger.info(f"Redis conversation store connected: {self.redis_url[:20]}... (TTL: {self.ttl_seconds}s)")
             except ImportError:
                 logger.warning("redis package not installed, falling back to in-memory store")
                 self._connected = False
@@ -180,7 +180,25 @@ class RedisConversationStore(ConversationStore):
         return f"conversation:{conversation_id}"
     
     def _ensure_connected(self) -> bool:
-        """Ensure Redis connection is available."""
+        """
+        Ensure Redis connection is available.
+        
+        Uses cached connection status to avoid per-operation pings.
+        Only pings when connection status is uncertain.
+        """
+        if not self._connected or not self._redis_client:
+            return False
+        # Don't ping on every operation - trust the connection unless we get an error
+        # The redis client will raise exceptions on actual failures
+        return True
+    
+    def _check_connection(self) -> bool:
+        """
+        Explicitly check Redis connection (for startup/health checks).
+        
+        Returns:
+            True if connected, False otherwise.
+        """
         if not self._connected or not self._redis_client:
             return False
         try:
@@ -204,6 +222,8 @@ class RedisConversationStore(ConversationStore):
             return None
         except Exception as e:
             logger.error(f"Error reading conversation from Redis: {e}")
+            # Mark connection as potentially lost
+            self._connected = False
             return None
     
     def create_conversation(
@@ -249,7 +269,11 @@ class RedisConversationStore(ConversationStore):
         participants: Optional[List[str]] = None,
         state: Optional[ConversationState] = None,
     ) -> bool:
-        """Update conversation in Redis."""
+        """
+        Update conversation in Redis.
+        
+        Preserves remaining TTL instead of resetting it to avoid unexpected expiration timing.
+        """
         if not self._ensure_connected():
             return False
         
@@ -259,6 +283,12 @@ class RedisConversationStore(ConversationStore):
             if not existing:
                 return False
             
+            # Get remaining TTL to preserve expiration timing
+            remaining_ttl = self._redis_client.ttl(key)
+            if remaining_ttl < 0:
+                # Key exists but has no TTL (shouldn't happen, but handle gracefully)
+                remaining_ttl = self.ttl_seconds
+            
             # Update fields
             if participants is not None:
                 existing["participants"] = participants
@@ -266,16 +296,18 @@ class RedisConversationStore(ConversationStore):
                 existing["state"] = state.value
             existing["last_activity_at"] = datetime.utcnow().isoformat()
             
-            # Update with same TTL
+            # Update with preserved TTL (don't reset to full TTL)
             self._redis_client.setex(
                 key,
-                self.ttl_seconds,
+                remaining_ttl,
                 json.dumps(existing),
             )
-            logger.debug(f"Updated conversation {conversation_id} in Redis")
+            logger.debug(f"Updated conversation {conversation_id} in Redis (TTL preserved: {remaining_ttl}s)")
             return True
         except Exception as e:
             logger.error(f"Error updating conversation in Redis: {e}")
+            # Mark connection as potentially lost
+            self._connected = False
             return False
     
     def delete_conversation(self, conversation_id: str) -> bool:
@@ -301,6 +333,8 @@ class RedisConversationStore(ConversationStore):
             return self._redis_client.exists(key) > 0
         except Exception as e:
             logger.error(f"Error checking conversation existence in Redis: {e}")
+            # Mark connection as potentially lost
+            self._connected = False
             return False
 
 

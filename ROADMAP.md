@@ -347,6 +347,18 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Integration tests for ConversationRegistry with store abstraction
 - [x] Tests verify Redis persistence and fallback behavior
 
+### Performance & Reliability Improvements
+- [x] TTL preservation on updates (prevents unexpected expiration timing)
+- [x] Participant cache synchronization with Redis TTL expiration
+- [x] Redis connection latency optimization (removed per-operation pings)
+- [x] Cache invalidation when conversations expire or are deleted
+- [x] Proper error handling for Redis connection failures
+
+### Code Quality Improvements
+- [x] Added public `is_demo_mode()` method to DeviceRegistry (replaces unsafe private attribute access)
+- [x] Frontend banner uses storage events instead of polling (removed dead code)
+- [x] Backend sets `X-Demo-Mode-Auto-Create` header for frontend detection
+
 ### Documentation
 - [x] README updated with Redis configuration and Heroku setup instructions
 - [x] Environment variable documentation (REDIS_URL, CONVERSATION_TTL_SECONDS)

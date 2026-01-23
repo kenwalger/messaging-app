@@ -558,7 +558,11 @@ async def join_conversation(
     result = conversation_service.join_conversation(device_id, conversation_id)
     
     status_code = result.get("status_code", 200)
-    return JSONResponse(content=result, status_code=status_code)
+    response = JSONResponse(content=result, status_code=status_code)
+    # Add header if conversation was auto-created in demo mode
+    if result.get("demo_mode_auto_create"):
+        response.headers["X-Demo-Mode-Auto-Create"] = "true"
+    return response
 
 
 @app.post("/api/conversation/leave")
@@ -968,6 +972,9 @@ async def send_message(
     # Enhanced logging for debugging conversation_not_found issues
     logger.debug(f"Conversation check: conversation_id={conversation_id}, exists={conversation_exists}, is_active={is_active}, participants={participants}")
     
+    # Track if conversation was auto-created (for response header)
+    conversation_was_auto_created = False
+    
     # In demo mode: Auto-create conversation if it doesn't exist (for multi-device demos)
     # This handles cases where conversation was created on a different dyno or lost due to restart
     if not conversation_exists and DEMO_MODE:
@@ -978,6 +985,7 @@ async def send_message(
             participants=[device_id],
         )
         if success:
+            conversation_was_auto_created = True
             logger.info(f"[DEMO MODE] Successfully auto-created conversation {conversation_id}")
             # Log event for observability
             if logging_service:
@@ -1202,10 +1210,14 @@ async def send_message(
         response_content["demo_mode_warning"] = "WebSocket delivery is best-effort; message queued for REST polling"
         logger.debug(f"[DEMO MODE] Message {message_id} accepted (WebSocket optional)")
     
-    return JSONResponse(
+    # Create response and add header if conversation was auto-created
+    response = JSONResponse(
         content=response_content,
         status_code=status.HTTP_202_ACCEPTED,
     )
+    if conversation_was_auto_created:
+        response.headers["X-Demo-Mode-Auto-Create"] = "true"
+    return response
 
 
 @app.get("/api/message/receive")
