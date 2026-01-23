@@ -26,6 +26,9 @@ httpx>=0.24.0,<1.0.0  # Required for FastAPI TestClient
 # Encryption (for server-side encryption in dev/POC mode)
 cryptography>=41.0.0,<42.0.0
 
+# Redis (for persistent conversation storage on Heroku)
+redis>=5.0.0,<6.0.0
+
 # Note: Additional dependencies will be added as modules are implemented:
 # - WebSocket client (e.g., websockets, aiohttp)
 # - HTTP client (e.g., requests)

@@ -121,13 +121,15 @@ export class HttpMessageApiService implements MessageApiService {
       throw new Error(error)
     }
     
-    // Log request details for debugging (always log in production for troubleshooting)
-    console.log('[HttpMessageApi] Sending message:', {
-      conversation_id: conversationId,
-      payload_length: payload.length,
-      encryption_mode: encryptionMode,
-      api_base_url: this.apiBaseUrl,
-    })
+    // Log request details for debugging (only in development mode)
+    if (import.meta.env.DEV) {
+      console.log('[HttpMessageApi] Sending message:', {
+        conversation_id: conversationId,
+        payload_length: payload.length,
+        encryption_mode: encryptionMode,
+        api_base_url: this.apiBaseUrl,
+      })
+    }
 
     try {
       // Send message via HTTP POST
@@ -140,6 +142,17 @@ export class HttpMessageApiService implements MessageApiService {
         body: JSON.stringify(requestBody),
       })
 
+      // Check for demo mode auto-create header from backend (check for both success and error responses)
+      const autoCreateHeader = response.headers.get('X-Demo-Mode-Auto-Create')
+      if (autoCreateHeader === 'true') {
+        // Set flag for demo mode banner
+        localStorage.setItem('demo_mode_auto_create', 'true')
+        // Only log in development mode (not production)
+        if (import.meta.env.DEV) {
+          console.log('[HttpMessageApi] Demo mode: Conversation was auto-created by backend')
+        }
+      }
+      
       // In demo mode, treat HTTP 200/202 as success (message accepted)
       // WebSocket failures don't block message acceptance
       if (!response.ok) {
@@ -147,7 +160,7 @@ export class HttpMessageApiService implements MessageApiService {
         const errorMessage = errorData.message || `HTTP ${response.status}: ${response.statusText}`
         const errorCode = errorData.error_code || 'unknown_error'
         
-        // Log detailed error for debugging (development only)
+        // Log error details (only in development mode to avoid exposing details in production)
         if (import.meta.env.DEV) {
           console.error('[HttpMessageApi] Message send failed:', {
             status: response.status,
@@ -156,6 +169,9 @@ export class HttpMessageApiService implements MessageApiService {
             conversation_id: conversationId,
             request_id: errorData.request_id,
           })
+        } else {
+          // Production: Log generic error only (no details)
+          console.error('[HttpMessageApi] Message send failed')
         }
         
         throw new Error(errorMessage)

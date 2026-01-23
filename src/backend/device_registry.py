@@ -58,6 +58,15 @@ class DeviceRegistry:
         self._device_last_seen: Dict[str, datetime] = {}  # device_id -> last_seen timestamp
         self._demo_activity_ttl = timedelta(minutes=5)  # 5 minute TTL for demo mode
     
+    def is_demo_mode(self) -> bool:
+        """
+        Check if demo mode is enabled.
+        
+        Returns:
+            True if demo mode is enabled, False otherwise.
+        """
+        return self._demo_mode
+    
     def register_device(
         self,
         device_id: str,

@@ -8,6 +8,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Redis-backed conversation registry for Heroku multi-dyno deployments
+  - ConversationStore abstraction with Redis and InMemory implementations
+  - Redis-backed storage using Heroku Redis addon (REDIS_URL)
+  - Automatic fallback to in-memory store in demo mode when Redis unavailable
+  - Configurable TTL for conversations (CONVERSATION_TTL_SECONDS, default: 30 minutes)
+  - Conversations persist across dyno restarts and multiple dynos
+  - Only conversation metadata stored (no message content, encryption keys, or decrypted payloads)
+  - Enhanced logging for Redis connection status and conversation operations
+  - Demo mode auto-creation of conversations in Redis when not found
+  - Frontend banner warning when demo mode auto-creates conversations
+
+### Fixed
+- Critical race condition fixes in Redis conversation store
+  - Fixed race conditions in `add_participant()` and `remove_participant()` using WATCH/MULTI/EXEC transactions
+  - Fixed race condition in `update_conversation()` TTL preservation using optimistic locking with retry logic
+  - All participant management operations now use atomic Redis transactions to prevent data corruption under concurrent access
+  - Retry logic (up to 3 attempts) handles concurrent modification conflicts gracefully
+  - Properly distinguishes TTL=-2 (key doesn't exist) from TTL=-1 (no expiration) to prevent silent failures
+- Redis conversation store TTL handling improvements
+  - Fixed TTL reset behavior: updates now preserve remaining TTL instead of resetting to full duration
+  - Prevents unexpected expiration timing when conversations are updated frequently
+  - Uses Redis TTL command to get remaining time before updating
+  - Proper handling of TTL=-2 (key deleted) vs TTL=-1 (no expiration) scenarios
+- Participant cache synchronization with Redis TTL expiration
+  - Fixed cache staleness: `get_conversation_participants()` always reads from store to ensure consistency
+  - Added cache invalidation when conversations expire or are deleted
+  - `handle_participant_revocation()` validates conversation existence before removal (handles TTL expiration)
+  - Cache is updated when conversations exist, but always verified against store
+- Redis connection latency optimization
+  - Removed per-operation Redis ping calls (was adding latency overhead)
+  - Connection status cached, only marked as lost on actual errors
+  - Added separate `_check_connection()` method for explicit health checks (startup only)
+  - Redis client exceptions properly caught and connection marked as lost
+- Demo mode detection API improvements
+  - Added public `is_demo_mode()` method to DeviceRegistry (replaces unsafe private attribute access)
+  - Updated conversation_api.py to use proper API instead of `getattr(..., '_demo_mode')`
+- Frontend demo mode banner integration
+  - Fixed same-tab update detection: added polling in addition to storage events (storage events only fire cross-tab)
+  - Backend now sets `X-Demo-Mode-Auto-Create` header in responses when auto-creating conversations
+  - Frontend checks header and sets localStorage flag with both storage events and polling
+  - Banner now detects auto-creation in both same-tab and cross-tab scenarios
+- Production error logging security
+  - Error logging now conditional on development mode (import.meta.env.DEV)
+  - Production logs only show generic errors without exposing details (conversation_id, error_code, request_id)
+  - Prevents sensitive information from appearing in browser console in production
 - Demo Mode for reliable Heroku multi-device demos
   - DEMO_MODE environment variable enables HTTP-first messaging
   - Device activity tracking with 5-minute TTL (devices considered "active" if seen within TTL)

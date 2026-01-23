@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from src.backend.conversation_api import ConversationService
 from src.backend.conversation_registry import ConversationRegistry
+from src.backend.conversation_store import InMemoryConversationStore
 from src.shared.constants import MAX_GROUP_SIZE
 from src.shared.conversation_types import ConversationState
 
@@ -28,8 +29,13 @@ class TestConversationAPI(unittest.TestCase):
         self.device_registry.is_device_active = Mock(return_value=True)
         self.log_service = Mock()
         
-        # Create conversation registry
-        self.conversation_registry = ConversationRegistry(self.device_registry)
+        # Create conversation registry with in-memory store for tests
+        store = InMemoryConversationStore()
+        self.conversation_registry = ConversationRegistry(
+            self.device_registry,
+            conversation_store=store,
+            demo_mode=True,
+        )
         
         # Create conversation service
         self.service = ConversationService(

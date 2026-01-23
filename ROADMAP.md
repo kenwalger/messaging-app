@@ -320,6 +320,50 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] CORS configuration for deployed frontend (`FRONTEND_ORIGIN` environment variable)
 - [x] WebSocket support (native Heroku WebSocket support, uses `wss://` for HTTPS)
 
+## Phase 6.3: Redis-Backed Conversation Registry ✅
+
+**Status:** Completed
+
+### Redis Storage Implementation
+- [x] ConversationStore abstraction with Redis and InMemory implementations
+- [x] Redis-backed storage using Heroku Redis addon (REDIS_URL)
+- [x] Automatic fallback to in-memory store in demo mode when Redis unavailable
+- [x] Configurable TTL for conversations (CONVERSATION_TTL_SECONDS, default: 30 minutes)
+- [x] Conversations persist across dyno restarts and multiple dynos
+- [x] Only conversation metadata stored (no message content, encryption keys, or decrypted payloads)
+
+### Integration
+- [x] Updated ConversationRegistry to use ConversationStore abstraction
+- [x] Updated conversation create/join/send endpoints to use Redis-backed store
+- [x] Demo mode auto-creation of conversations in Redis when not found
+- [x] Enhanced logging for Redis connection status and conversation operations
+
+### Frontend Support
+- [x] Frontend banner warning when demo mode auto-creates conversations
+- [x] Non-blocking UI indicator for conversation state resets
+
+### Testing
+- [x] Unit tests for ConversationStore implementations
+- [x] Integration tests for ConversationRegistry with store abstraction
+- [x] Tests verify Redis persistence and fallback behavior
+
+### Performance & Reliability Improvements
+- [x] TTL preservation on updates (prevents unexpected expiration timing)
+- [x] Participant cache synchronization with Redis TTL expiration
+- [x] Redis connection latency optimization (removed per-operation pings)
+- [x] Cache invalidation when conversations expire or are deleted
+- [x] Proper error handling for Redis connection failures
+
+### Code Quality Improvements
+- [x] Added public `is_demo_mode()` method to DeviceRegistry (replaces unsafe private attribute access)
+- [x] Frontend banner uses storage events instead of polling (removed dead code)
+- [x] Backend sets `X-Demo-Mode-Auto-Create` header for frontend detection
+
+### Documentation
+- [x] README updated with Redis configuration and Heroku setup instructions
+- [x] Environment variable documentation (REDIS_URL, CONVERSATION_TTL_SECONDS)
+- [x] Deployment notes for Heroku Redis addon
+
 ## Phase 6.2: Demo Mode for Reliable Multi-Device Demos ✅
 
 **Status:** Completed

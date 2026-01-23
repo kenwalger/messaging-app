@@ -235,20 +235,40 @@ class ConversationService:
         conversation_exists = self.conversation_registry.conversation_exists(conversation_id)
         is_active = self.conversation_registry.is_conversation_active(conversation_id)
         
+        # Track if conversation was auto-created (for response indicator)
+        conversation_was_auto_created = False
+        
         # In demo mode: Auto-create conversation if it doesn't exist (for multi-device demos)
         # This handles cases where conversation was created on a different dyno or lost due to restart
-        demo_mode = getattr(self.device_registry, '_demo_mode', False)
+        demo_mode = self.device_registry.is_demo_mode() if hasattr(self.device_registry, 'is_demo_mode') else False
         if not conversation_exists and demo_mode:
-            logger.info(f"[DEMO MODE] Auto-creating conversation {conversation_id} for device {device_id}")
+            logger.warning(f"[DEMO MODE] Auto-creating conversation {conversation_id} for device {device_id} (conversation_not_found)")
             # Create conversation with the joining device as the first participant
             success = self.conversation_registry.register_conversation(
                 conversation_id=conversation_id,
                 participants=[device_id],
             )
             if success:
+                conversation_was_auto_created = True
                 logger.info(f"[DEMO MODE] Successfully auto-created conversation {conversation_id}")
+                # Log event for observability
+                if self.log_service:
+                    self.log_service.log_event(
+                        "demo_mode_auto_create",
+                        {
+                            "conversation_id": conversation_id,
+                            "device_id": device_id,
+                            "reason": "conversation_not_found",
+                        },
+                    )
+                # Continue with normal join flow (conversation now exists)
+                conversation_exists = True
+                is_active = True
             else:
-                logger.warning(f"[DEMO MODE] Failed to auto-create conversation {conversation_id} (may already exist)")
+                logger.warning(f"[DEMO MODE] Failed to auto-create conversation {conversation_id} (may have been created by another request)")
+                # Re-check existence in case it was created by another request
+                conversation_exists = self.conversation_registry.conversation_exists(conversation_id)
+                is_active = self.conversation_registry.is_conversation_active(conversation_id)
         elif not is_active:
             return {
                 "status": "error",
@@ -259,11 +279,14 @@ class ConversationService:
         # Check if already a participant
         participants = self.conversation_registry.get_conversation_participants(conversation_id)
         if participants and device_id in participants:
-            return {
+            result = {
                 "status": "success",
                 "message": "Already a participant",
                 "conversation_id": conversation_id,
             }
+            if conversation_was_auto_created:
+                result["demo_mode_auto_create"] = True
+            return result
         
         # Check group size limit before attempting to add per Resolved TBDs
         if participants and len(participants) >= MAX_GROUP_SIZE:
@@ -299,11 +322,14 @@ class ConversationService:
         
         logger.info(f"Device {device_id} joined conversation {conversation_id}")
         
-        return {
+        result = {
             "status": "success",
             "conversation_id": conversation_id,
             "message": "Successfully joined conversation",
         }
+        if conversation_was_auto_created:
+            result["demo_mode_auto_create"] = True
+        return result
     
     def leave_conversation(
         self,

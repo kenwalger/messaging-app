@@ -98,7 +98,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     # Initialize core services
     _device_registry = DeviceRegistry(demo_mode=DEMO_MODE)
-    _conversation_registry = ConversationRegistry(_device_registry)
+    _conversation_registry = ConversationRegistry(_device_registry, demo_mode=DEMO_MODE)
     _identity_enforcement = IdentityEnforcementService(_device_registry)
     _logging_service = LoggingService()
     _websocket_manager = FastAPIWebSocketManager()
@@ -558,7 +558,11 @@ async def join_conversation(
     result = conversation_service.join_conversation(device_id, conversation_id)
     
     status_code = result.get("status_code", 200)
-    return JSONResponse(content=result, status_code=status_code)
+    response = JSONResponse(content=result, status_code=status_code)
+    # Add header if conversation was auto-created in demo mode
+    if result.get("demo_mode_auto_create"):
+        response.headers["X-Demo-Mode-Auto-Create"] = "true"
+    return response
 
 
 @app.post("/api/conversation/leave")
@@ -968,17 +972,32 @@ async def send_message(
     # Enhanced logging for debugging conversation_not_found issues
     logger.debug(f"Conversation check: conversation_id={conversation_id}, exists={conversation_exists}, is_active={is_active}, participants={participants}")
     
+    # Track if conversation was auto-created (for response header)
+    conversation_was_auto_created = False
+    
     # In demo mode: Auto-create conversation if it doesn't exist (for multi-device demos)
     # This handles cases where conversation was created on a different dyno or lost due to restart
     if not conversation_exists and DEMO_MODE:
-        logger.info(f"[DEMO MODE] Auto-creating conversation {conversation_id} for device {device_id} during message send")
+        logger.warning(f"[DEMO MODE] Auto-creating conversation {conversation_id} for device {device_id} during message send (conversation_not_found)")
         # Create conversation with the sending device as the first participant
         success = conversation_registry.register_conversation(
             conversation_id=conversation_id,
             participants=[device_id],
         )
         if success:
+            conversation_was_auto_created = True
             logger.info(f"[DEMO MODE] Successfully auto-created conversation {conversation_id}")
+            # Log event for observability
+            if logging_service:
+                logging_service.log_event(
+                    "demo_mode_auto_create",
+                    {
+                        "request_id": request_id,
+                        "conversation_id": conversation_id,
+                        "device_id": device_id,
+                        "reason": "conversation_not_found",
+                    },
+                )
             # Re-fetch participants after creation
             participants = conversation_registry.get_conversation_participants(conversation_id)
             conversation_exists = True
@@ -1191,10 +1210,14 @@ async def send_message(
         response_content["demo_mode_warning"] = "WebSocket delivery is best-effort; message queued for REST polling"
         logger.debug(f"[DEMO MODE] Message {message_id} accepted (WebSocket optional)")
     
-    return JSONResponse(
+    # Create response and add header if conversation was auto-created
+    response = JSONResponse(
         content=response_content,
         status_code=status.HTTP_202_ACCEPTED,
     )
+    if conversation_was_auto_created:
+        response.headers["X-Demo-Mode-Auto-Create"] = "true"
+    return response
 
 
 @app.get("/api/message/receive")
