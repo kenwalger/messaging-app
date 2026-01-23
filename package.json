@@ -4,7 +4,7 @@
   "private": true,
   "description": "Root package.json for Heroku deployment - delegates to src/ui/package.json",
   "scripts": {
-    "heroku-postbuild": "cd src/ui && npm install && npm run build"
+    "heroku-postbuild": "cd src/ui && npm install --include=dev && npm run build"
   },
   "engines": {
     "node": ">=18.0.0"

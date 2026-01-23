@@ -115,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Conversation auto-creation on first load (creates conversation if none exists)
   - Conversation join flow UI component (view current ID, paste ID to join from another device)
   - Conversation ID persistence in localStorage (maintains conversation across reloads)
-  - Frontend build integration (heroku-postbuild script builds frontend during Heroku deployment, runs after devDependencies are installed)
+  - Frontend build integration (heroku-postbuild script uses `npm install --include=dev` to ensure devDependencies are installed even when `NODE_ENV=production`)
   - Multi-buildpack support (Node.js for frontend build, Python for backend)
   - .python-version file committed (removed from .gitignore for Heroku Python buildpack)
   - Comprehensive deployment documentation (DEPLOYMENT.md) with step-by-step instructions

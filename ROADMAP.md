@@ -314,7 +314,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Root-level package.json for Heroku Node.js buildpack detection (delegates to src/ui/package.json)
 - [x] .python-version file (Python 3.14.0) for Heroku Python buildpack
 - [x] Multi-buildpack support (Node.js for frontend build, Python for backend)
-- [x] Frontend build integration (heroku-postbuild script builds frontend during deployment)
+- [x] Frontend build integration (heroku-postbuild script uses `npm install --include=dev` to ensure devDependencies are installed for build)
 - [x] Backend static file serving (serves React app from `src/ui/dist/` for single-dyno deployment)
 - [x] CORS configuration for deployed frontend (`FRONTEND_ORIGIN` environment variable)
 - [x] WebSocket support (native Heroku WebSocket support, uses `wss://` for HTTPS)

@@ -72,8 +72,8 @@ heroku buildpacks:add --index 2 heroku/python
 **Note**: 
 - The root-level `package.json` is required for Heroku Node.js buildpack detection
 - The root `package.json` delegates to `src/ui/package.json` for the actual build
-- The Node.js buildpack will automatically run `heroku-postbuild` script after installing dependencies (including devDependencies) but before pruning them
-- This ensures build tools (TypeScript, Vite) are available during the build phase
+- The `heroku-postbuild` script uses `npm install --include=dev` to ensure devDependencies (TypeScript, Vite) are installed even when `NODE_ENV=production`
+- This ensures build tools are available during the build phase
 
 ### 4. Deploy Backend
 
