@@ -189,4 +189,81 @@ export class ConversationApiService {
       return false
     }
   }
+
+  /**
+   * Ensure a conversation exists (idempotent creation).
+   * 
+   * Calls POST /api/conversation/create with conversation_id to create or retrieve
+   * an existing conversation. This guarantees the conversation exists before sending messages.
+   * 
+   * @param conversationId Conversation ID to ensure exists
+   * @param deviceId Device ID (X-Device-ID header)
+   * @param participants List of participant device IDs (defaults to [deviceId])
+   * @param encryptionMode Encryption mode for the conversation (optional)
+   * @returns Promise resolving to ConversationViewModel if successful, null if failed
+   */
+  async ensureConversation(
+    conversationId: string,
+    deviceId: string,
+    participants?: string[],
+    encryptionMode?: string
+  ): Promise<ConversationViewModel | null> {
+    try {
+      const response = await fetch(`${this.apiBaseUrl}/api/conversation/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-ID': deviceId,
+        },
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          participants: participants || [deviceId],
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.message || `HTTP ${response.status}: ${response.statusText}`
+        if (import.meta.env.DEV) {
+          console.error('[ConversationApi] ensureConversation failed:', {
+            conversation_id: conversationId,
+            status: response.status,
+            error_code: errorData.error_code,
+            message: errorMessage,
+          })
+        }
+        return null
+      }
+
+      const data = await response.json()
+
+      if (data.status !== 'success') {
+        return null
+      }
+
+      // Log whether conversation was created or reused (for transparency)
+      if (import.meta.env.DEV) {
+        const action = data.created === false ? 'reused' : 'created'
+        console.log(`[ConversationApi] Conversation ${conversationId} ${action} (idempotent)`)
+      }
+
+      // Map backend response to ConversationViewModel
+      return {
+        conversation_id: data.conversation_id,
+        state: 'active',
+        participant_count: data.participants?.length || 1,
+        can_send: true,
+        is_read_only: false,
+        send_disabled: false,
+        last_message_at: null,
+        created_at: new Date().toISOString(),
+        display_name: `Conversation (${data.participants?.length || 1} participants)`,
+      }
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('[ConversationApi] ensureConversation error:', error)
+      }
+      return null
+    }
+  }
 }

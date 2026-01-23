@@ -356,11 +356,18 @@ Demo mode (`DEMO_MODE=true`) enables reliable multi-device demos on Heroku by:
 - Preserving encryption requirements (client or server mode enforced)
 
 **Multi-Device Demo Flow:**
-1. First device opens app → generates unique device ID → auto-creates conversation → displays conversation ID in sidebar
+1. First device opens app → generates unique device ID → ensures conversation exists (idempotent creation) → displays conversation ID in sidebar
 2. Second device opens app → generates different device ID → user copies conversation ID from first device → pastes in "Join Conversation" field → clicks "Join"
 3. After joining, the conversation is automatically selected and ready for messaging
 4. Conversation ID display in sidebar updates to show the currently selected conversation (can be copied with "Copy" button)
-3. All devices share same conversation → messages delivered via WebSocket (if available) or REST polling → real-time updates
+5. Before sending messages, the app ensures the conversation exists (idempotent: creates if missing, retrieves if exists)
+6. All devices share same conversation → messages delivered via WebSocket (if available) or REST polling → real-time updates
+
+**Conversation Idempotency:**
+- POST `/api/conversation/create` is idempotent: if `conversation_id` is provided and the conversation already exists, it returns the existing conversation
+- Frontend `ensureConversation()` method is called on app startup and before each message send to guarantee conversation exists
+- If conversation ensure fails, a blocking error banner is displayed and message sending is disabled
+- Backend logs whether conversation was "created" or "reused" for transparency
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions, troubleshooting, and live demo checklist.
 

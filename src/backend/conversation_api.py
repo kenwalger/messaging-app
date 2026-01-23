@@ -147,15 +147,16 @@ class ConversationService:
         
         # Defensive error handling: Check if conversation already exists with this ID
         if self.conversation_registry.conversation_exists(conversation_id):
-            # Conversation with this ID already exists - return it
+            # Conversation with this ID already exists - return it (idempotent behavior)
             existing_participants = self.conversation_registry.get_conversation_participants(conversation_id)
             if self.conversation_registry.is_conversation_active(conversation_id):
-                logger.info(f"Conversation {conversation_id} already exists, returning existing conversation")
+                logger.info(f"Conversation {conversation_id} already exists, reusing existing conversation (idempotent)")
                 return {
                     "status": "success",
                     "conversation_id": conversation_id,
                     "participants": list(existing_participants),
                     "status_code": 200,
+                    "created": False,  # Indicates conversation was reused, not created
                 }
             else:
                 # Conversation exists but is closed - return error
@@ -194,13 +195,15 @@ class ConversationService:
                 },
             )
         
-        logger.info(f"Conversation {conversation_id} created by device {device_id}")
+        logger.info(f"Conversation {conversation_id} created successfully (idempotent: new)")
         
         return {
             "status": "success",
             "conversation_id": conversation_id,
             "participants": participants,
             "state": ConversationState.ACTIVE.value,
+            "status_code": 200,
+            "created": True,  # Indicates conversation was newly created
         }
     
     def join_conversation(

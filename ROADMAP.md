@@ -40,6 +40,13 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Pydantic request model for conversation creation endpoint (fixes 422 errors)
 - [x] Logging service crash fix (handles both enum and string event types)
 - [x] Defensive error handling for duplicate conversation creation (idempotent behavior)
+- [x] Idempotent conversation creation with `conversation_id` parameter
+  - POST `/api/conversation/create` accepts optional `conversation_id` for idempotent creation
+  - Returns existing conversation if `conversation_id` provided and conversation exists
+  - Backend logs whether conversation was "created" or "reused" for transparency
+  - Frontend `ensureConversation()` method guarantees conversation exists before message send
+  - Blocking error banner displayed when conversation ensure fails
+  - Message composer disabled when conversation error exists
 
 ## Phase 2: Identity & Provisioning ✅
 

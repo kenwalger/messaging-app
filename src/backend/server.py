@@ -435,8 +435,12 @@ class CreateConversationRequest(BaseModel):
     Request model for creating a conversation.
     
     Per API Contracts (#10) and Functional Spec (#6), Section 4.1.
+    
+    If conversation_id is provided and the conversation already exists, the endpoint
+    returns the existing conversation (idempotent behavior).
     """
     participants: List[str] = Field(..., min_length=1, description="List of participant device IDs")
+    conversation_id: Optional[str] = Field(None, description="Optional conversation ID for idempotent creation")
     
     model_config = {
         "json_schema_extra": {
@@ -523,8 +527,12 @@ async def create_conversation(
     if device_id not in participants:
         participants = [device_id] + participants
     
-    # Call conversation service
-    result = conversation_service.create_conversation(device_id, participants)
+    # Call conversation service with optional conversation_id for idempotent creation
+    result = conversation_service.create_conversation(
+        device_id, 
+        participants, 
+        conversation_id=request.conversation_id
+    )
     
     # Return structured response
     status_code = result.get("status_code", 200)

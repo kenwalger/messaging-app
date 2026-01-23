@@ -87,31 +87,31 @@ function Root() {
         const fetchedDeviceState = await deviceApi.getDeviceState(deviceId)
         setDeviceState(fetchedDeviceState)
 
-        // Auto-create conversation if none exists and none is stored
+        // Ensure conversation exists (idempotent: create or retrieve)
         let activeConversationId = currentConversationId
         if (!activeConversationId) {
-          // Try to create a new conversation
-          const newConversation = await conversationApi.createConversation(deviceId, [deviceId])
-          if (newConversation) {
-            activeConversationId = newConversation.conversation_id
-            storeConversationId(activeConversationId)
-            setCurrentConversationId(activeConversationId)
-            if (import.meta.env.DEV) {
-              console.log(`[Conversation] Auto-created conversation: ${activeConversationId}`)
-            }
+          // Generate a new conversation ID for this device
+          activeConversationId = `conv-${deviceId}-${Date.now()}`
+          storeConversationId(activeConversationId)
+        }
+        
+        // Ensure conversation exists before proceeding (idempotent creation)
+        // Note: encryptionMode is optional in ensureConversation, so we don't need to import it here
+        const ensuredConversation = await conversationApi.ensureConversation(
+          activeConversationId,
+          deviceId,
+          [deviceId]
+        )
+        
+        if (ensuredConversation) {
+          setCurrentConversationId(activeConversationId)
+          if (import.meta.env.DEV) {
+            console.log(`[Conversation] Ensured conversation exists: ${activeConversationId}`)
           }
         } else {
-          // Try to join existing conversation (in case device was not a participant)
-          const joined = await conversationApi.joinConversation(activeConversationId, deviceId)
-          if (!joined && import.meta.env.DEV) {
-            console.log(`[Conversation] Failed to join conversation ${activeConversationId}, will try to create new one`)
-            // If join failed, create a new conversation
-            const newConversation = await conversationApi.createConversation(deviceId, [deviceId])
-            if (newConversation) {
-              activeConversationId = newConversation.conversation_id
-              storeConversationId(activeConversationId)
-              setCurrentConversationId(activeConversationId)
-            }
+          // Conversation ensure failed - will be handled by App component error banner
+          if (import.meta.env.DEV) {
+            console.error(`[Conversation] Failed to ensure conversation: ${activeConversationId}`)
           }
         }
 
@@ -262,6 +262,8 @@ function Root() {
       messageTransport={messageTransport}
       currentConversationId={currentConversationId}
       onConversationJoined={handleConversationJoined}
+      conversationApi={conversationApi}
+      deviceId={deviceId}
     />
   )
 }
