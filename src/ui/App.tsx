@@ -84,6 +84,8 @@ export const App: React.FC<AppProps> = ({
   messageApi,
   messageTransport,
   onMessagesUpdate,
+  currentConversationId = null,
+  onConversationJoined,
 }) => {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
     conversations.length > 0 ? conversations[0].conversation_id : null

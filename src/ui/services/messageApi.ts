@@ -63,7 +63,7 @@ export class MockMessageApiService implements MessageApiService {
   async sendMessage(
     conversationId: string,
     senderId: string,
-    content: string
+    _content: string
   ): Promise<MessageViewModel> {
     // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 100));

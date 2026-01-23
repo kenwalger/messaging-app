@@ -45,7 +45,7 @@ export interface MessagingViewProps {
  */
 export const MessagingView: React.FC<MessagingViewProps> = ({
   messageHandler,
-  deviceId,
+  deviceId: _deviceId,
   isReadOnly,
 }) => {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);

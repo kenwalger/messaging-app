@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- TypeScript compilation errors in Heroku build
+  - Fixed missing props destructuring in App.tsx (currentConversationId, onConversationJoined)
+  - Fixed unused parameter warnings in MessagingView.tsx (deviceId) and messageApi.ts (content)
+  - Prefixed unused parameters with underscore to satisfy TypeScript strict mode
+  - All TypeScript errors resolved, Heroku build now succeeds
 - Conversation creation endpoint (`POST /api/conversation/create`) now uses Pydantic request model
   - Replaced raw `List[str]` parameter with `CreateConversationRequest` model
   - Request body now requires `{"participants": ["device-001", "device-002"]}` format (not raw array)
