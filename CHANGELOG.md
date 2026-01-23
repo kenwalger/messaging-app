@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Demo Mode for reliable Heroku multi-device demos
+  - DEMO_MODE environment variable enables HTTP-first messaging
+  - Device activity tracking with 5-minute TTL (devices considered "active" if seen within TTL)
+  - Auto-registration of unknown devices on first request
+  - Lenient device validation (does not reject message sends due to device_not_active or missing WebSocket)
+  - WebSocket becomes best-effort delivery, not authorization requirement
+  - Messages always queued for REST polling even if WebSocket unavailable
+  - Frontend demo mode banner: "🧪 Demo Mode — WebSocket optional, encryption enforced"
+  - Frontend does not block message sending based on WebSocket connection status in demo mode
+  - Backend logs clearly indicate when demo mode logic is applied
+  - Encryption requirements remain enforced (client or server mode)
+  - Behavior explicitly gated behind DEMO_MODE flag (no production impact)
+
 ### Fixed
 - TypeScript compilation errors in Heroku build
   - Fixed missing props destructuring in App.tsx (currentConversationId, onConversationJoined)

@@ -37,17 +37,26 @@ class DeviceRegistry:
     Enforces identity-based permissions server-side per Functional Spec (#6), Section 3.2.
     """
     
-    def __init__(self) -> None:
+    def __init__(self, demo_mode: bool = False) -> None:
         """
         Initialize device registry.
         
         Maintains device identity state tracking in memory.
         Classification: Restricted per Data Classification (#8), Section 3.
+        
+        Args:
+            demo_mode: If True, enables demo mode with lenient device validation and activity TTL.
         """
         # Device identity storage per Identity Provisioning (#11), Section 2
         # Classification: Restricted per Data Classification (#8), Section 3
         self._devices: Dict[str, DeviceIdentity] = {}
         self._device_lock = Lock()
+        
+        # Demo mode: Track device activity with TTL (5 minutes)
+        # Devices are considered "active" if seen within TTL window
+        self._demo_mode = demo_mode
+        self._device_last_seen: Dict[str, datetime] = {}  # device_id -> last_seen timestamp
+        self._demo_activity_ttl = timedelta(minutes=5)  # 5 minute TTL for demo mode
     
     def register_device(
         self,
@@ -198,18 +207,46 @@ class DeviceRegistry:
         Used for permission enforcement across the system.
         Only Active devices can send messages, create/join conversations per Functional Spec (#6).
         
+        In demo mode: Devices are considered active if seen within TTL window (5 minutes),
+        even if not in Active state. This allows HTTP-first messaging without WebSocket dependency.
+        
         Args:
             device_id: Device identifier to check.
         
         Returns:
             True if device exists and is in Active state, False otherwise.
+            In demo mode: Also returns True if device was seen within TTL window.
         """
         with self._device_lock:
             device = self._devices.get(device_id)
+            
+            # Demo mode: Check activity TTL
+            if self._demo_mode:
+                last_seen = self._device_last_seen.get(device_id)
+                if last_seen:
+                    time_since_seen = utc_now() - last_seen
+                    if time_since_seen <= self._demo_activity_ttl:
+                        # Device seen within TTL window - consider active for demo purposes
+                        return True
+            
             if device is None:
                 return False
             
             return device.is_active()
+    
+    def mark_device_seen(self, device_id: str) -> None:
+        """
+        Mark device as seen (for demo mode activity tracking).
+        
+        In demo mode, this updates the last_seen timestamp to keep device "active"
+        within the TTL window, allowing HTTP-first messaging without WebSocket dependency.
+        
+        Args:
+            device_id: Device identifier to mark as seen.
+        """
+        if self._demo_mode:
+            with self._device_lock:
+                self._device_last_seen[device_id] = utc_now()
     
     def get_device_identity(self, device_id: str) -> Optional[DeviceIdentity]:
         """

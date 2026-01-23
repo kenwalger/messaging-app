@@ -97,7 +97,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Initializing Abiqua backend services...")
     
     # Initialize core services
-    _device_registry = DeviceRegistry()
+    _device_registry = DeviceRegistry(demo_mode=DEMO_MODE)
     _conversation_registry = ConversationRegistry(_device_registry)
     _identity_enforcement = IdentityEnforcementService(_device_registry)
     _logging_service = LoggingService()
@@ -172,6 +172,13 @@ ENCRYPTION_MODE = os.getenv("ENCRYPTION_MODE", "client").lower()
 if ENCRYPTION_MODE not in ("server", "client"):
     logger.warning(f"Invalid ENCRYPTION_MODE '{ENCRYPTION_MODE}', defaulting to 'client'")
     ENCRYPTION_MODE = "client"
+
+# Demo mode configuration
+# When enabled, allows HTTP-first messaging with lenient device validation
+# WebSockets become best-effort delivery, not authorization requirement
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() in ("true", "1", "yes", "on")
+if DEMO_MODE:
+    logger.info("🧪 DEMO MODE ENABLED - WebSocket optional, encryption enforced, lenient device validation")
 
 # Server-side encryption key (dev/POC mode only)
 # In production, encryption should be client-side only
@@ -653,8 +660,8 @@ async def send_message(
             except Exception:
                 pass  # If provisioning fails, continue to check active status
     
-    # Final check: device must be active
-    if not device_registry.is_device_active(device_id):
+    # Final check: device must be active (unless in demo mode)
+    if not DEMO_MODE and not device_registry.is_device_active(device_id):
         reason_code = "device_not_active"
         if logging_service:
             logger.warning(
@@ -669,6 +676,9 @@ async def send_message(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Device not active",
         )
+    elif DEMO_MODE and not device_registry.is_device_active(device_id):
+        # In demo mode, log warning but allow message send (activity TTL will handle it)
+        logger.warning(f"[DEMO MODE] Device {device_id} not in Active state, but allowing message send (activity TTL)")
     
     # Extract required request fields per API Contracts (#10), Section 3.3
     conversation_id = request.get("conversation_id", "")
@@ -1035,12 +1045,19 @@ async def send_message(
     
     # Return response per API Contracts (#10), Section 3.3
     # Response format: { message_id, timestamp, status }
+    response_content = {
+        "message_id": str(message_id),
+        "timestamp": message_timestamp.isoformat(),
+        "status": "queued",
+    }
+    
+    # In demo mode, add warning about WebSocket being optional
+    if DEMO_MODE:
+        response_content["demo_mode_warning"] = "WebSocket delivery is best-effort; message queued for REST polling"
+        logger.debug(f"[DEMO MODE] Message {message_id} accepted (WebSocket optional)")
+    
     return JSONResponse(
-        content={
-            "message_id": str(message_id),
-            "timestamp": message_timestamp.isoformat(),
-            "status": "queued",
-        },
+        content=response_content,
         status_code=status.HTTP_202_ACCEPTED,
     )
 
@@ -1220,9 +1237,25 @@ async def websocket_messages(
     # Validate device is active
     device_registry = get_device_registry()
     
+    # Demo mode: Mark device as seen and auto-register if needed
+    if DEMO_MODE:
+        device_registry.mark_device_seen(device_id)
+        existing_device = device_registry.get_device_identity(device_id)
+        if existing_device is None:
+            # Auto-register device in demo mode
+            try:
+                device_registry.register_device(device_id, "demo-public-key", "demo-controller")
+                device_registry.provision_device(device_id)
+                device_registry.confirm_provisioning(device_id)
+                logger.info(f"[DEMO MODE] Auto-registered device {device_id} for WebSocket connection")
+            except Exception as e:
+                logger.warning(f"[DEMO MODE] Failed to auto-register device {device_id}: {e}")
+        # In demo mode, allow WebSocket connection even if device not strictly active
+        if not device_registry.is_device_active(device_id):
+            logger.warning(f"[DEMO MODE] Device {device_id} not strictly active, but allowing WebSocket connection (activity TTL)")
     # Development mode: Auto-provision devices for local development convenience
     # In production, devices must be provisioned via Controller API first
-    if is_development and not device_registry.is_device_active(device_id):
+    elif is_development and not device_registry.is_device_active(device_id):
         existing_device = device_registry.get_device_identity(device_id)
         if existing_device is None:
             # Device doesn't exist - auto-register, provision, and confirm for development
@@ -1262,10 +1295,13 @@ async def websocket_messages(
         
         # Check again if device is now active (might have been provisioned by another request)
         if not device_registry.is_device_active(device_id):
-            # Still not active - close connection
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-    elif not device_registry.is_device_active(device_id):
+            # Still not active - close connection (unless in demo mode)
+            if not DEMO_MODE:
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
+            else:
+                logger.warning(f"[DEMO MODE] Device {device_id} not strictly active, but allowing WebSocket connection")
+    elif not DEMO_MODE and not device_registry.is_device_active(device_id):
         # Production mode: Device must be provisioned via Controller API
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return

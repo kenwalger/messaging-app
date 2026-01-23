@@ -53,9 +53,23 @@ heroku config:set FRONTEND_ORIGIN=https://abiqua-asset-management.herokuapp.com
 # Set environment to production (disables dev-only features)
 heroku config:set ENVIRONMENT=production
 
+# Enable demo mode for reliable multi-device demos (HTTP-first messaging, lenient device validation)
+heroku config:set DEMO_MODE=true
+
 # Optional: Set encryption key seed (only used if ENCRYPTION_MODE=server)
 # heroku config:set ENCRYPTION_KEY_SEED=your-seed-here
 ```
+
+**Demo Mode (`DEMO_MODE=true`):**
+Demo mode enables reliable multi-device demos by:
+- Allowing HTTP-first messaging without WebSocket dependency
+- Auto-registering devices on first request (no pre-provisioning needed)
+- Using device activity TTL (5 minutes) instead of strict active state checks
+- Making WebSocket delivery best-effort (messages always queued for REST polling)
+- Not blocking message sends based on WebSocket connection status
+- Preserving encryption requirements (client or server mode still enforced)
+
+**Important:** Demo mode is explicitly gated behind the `DEMO_MODE` flag. When `DEMO_MODE=false` or unset, production behavior is enforced (strict device validation, WebSocket required).
 
 ### 3. Configure Buildpacks
 
@@ -123,11 +137,16 @@ heroku open
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
+| `DEMO_MODE` | Demo mode: `true` enables HTTP-first messaging with lenient device validation | `false` | No (recommended for Heroku demos) |
 | `ENCRYPTION_MODE` | Encryption mode: `client` or `server` | `client` | No |
 | `FRONTEND_ORIGIN` | Frontend origin for CORS (same as app URL for single-dyno) | None | Yes (for CORS) |
 | `ENVIRONMENT` | Environment mode: `production` or `development` | `development` | No |
 | `ENCRYPTION_KEY_SEED` | Seed for server-side encryption (only if `ENCRYPTION_MODE=server`) | `dev-mode-encryption-key-seed` | No |
 | `PORT` | Port number (set automatically by Heroku) | - | Auto |
+
+**Demo Mode Behavior:**
+- When `DEMO_MODE=true`: HTTP-first messaging, auto-device registration, activity TTL (5 min), WebSocket optional
+- When `DEMO_MODE=false` or unset: Production behavior, strict device validation, WebSocket required
 
 ## WebSocket Support
 
@@ -195,9 +214,11 @@ cd src/ui && npm install && npm run build && cd ../..
 
 ### Pre-Demo Setup
 - [ ] Deploy to Heroku
+- [ ] Set `DEMO_MODE=true` environment variable
 - [ ] Verify app loads in browser
-- [ ] Check WebSocket connection (status indicator shows "WebSocket connected")
-- [ ] Test message send/receive on single device
+- [ ] Verify demo mode banner is visible: "🧪 Demo Mode — WebSocket optional, encryption enforced"
+- [ ] Check WebSocket connection (status indicator shows "WebSocket connected" or "REST polling fallback")
+- [ ] Test message send/receive on single device (should work even if WebSocket disconnected)
 
 ### Multi-Device Testing
 - [ ] **Chrome → Safari**: Open app in both browsers, share conversation ID
@@ -211,8 +232,10 @@ cd src/ui && npm install && npm run build && cd ../..
 - [ ] Each device has unique device ID (check localStorage or debug mode)
 - [ ] All devices can see same conversation
 - [ ] Messages appear in real-time (no refresh needed)
-- [ ] WebSocket delivers messages (not REST polling fallback)
+- [ ] Messages can be sent even when WebSocket is disconnected (demo mode)
+- [ ] WebSocket delivers messages when available (best-effort), REST polling used as fallback
 - [ ] Encryption works (client mode encrypts, server mode sends plaintext)
+- [ ] Demo mode banner visible on all devices
 
 ## Troubleshooting
 
