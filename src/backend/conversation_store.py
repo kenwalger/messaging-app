@@ -106,6 +106,47 @@ class ConversationStore(ABC):
         pass
     
     @abstractmethod
+    def add_participant(
+        self,
+        conversation_id: str,
+        device_id: str,
+    ) -> bool:
+        """
+        Add participant to conversation atomically.
+        
+        Must be implemented atomically to prevent race conditions in concurrent scenarios.
+        
+        Args:
+            conversation_id: Conversation identifier.
+            device_id: Device ID to add as participant.
+        
+        Returns:
+            True if participant added, False if conversation not found, closed, or limit exceeded.
+        """
+        pass
+    
+    @abstractmethod
+    def remove_participant(
+        self,
+        conversation_id: str,
+        device_id: str,
+    ) -> bool:
+        """
+        Remove participant from conversation atomically.
+        
+        Must be implemented atomically to prevent race conditions in concurrent scenarios.
+        If all participants are removed, conversation transitions to Closed state.
+        
+        Args:
+            conversation_id: Conversation identifier.
+            device_id: Device ID to remove from participants.
+        
+        Returns:
+            True if participant removed, False if conversation not found or participant not in conversation.
+        """
+        pass
+    
+    @abstractmethod
     def delete_conversation(self, conversation_id: str) -> bool:
         """
         Delete conversation metadata.
@@ -270,45 +311,86 @@ class RedisConversationStore(ConversationStore):
         state: Optional[ConversationState] = None,
     ) -> bool:
         """
-        Update conversation in Redis.
+        Update conversation in Redis using atomic transaction with optimistic locking.
         
         Preserves remaining TTL instead of resetting it to avoid unexpected expiration timing.
+        Uses Redis WATCH/MULTI/EXEC transaction to ensure atomicity and prevent race conditions.
+        Retries up to 3 times if concurrent modification detected.
         """
         if not self._ensure_connected():
             return False
         
-        try:
-            key = self._get_key(conversation_id)
-            existing = self.get_conversation(conversation_id)
-            if not existing:
-                return False
-            
-            # Get remaining TTL to preserve expiration timing
-            remaining_ttl = self._redis_client.ttl(key)
-            if remaining_ttl < 0:
-                # Key exists but has no TTL (shouldn't happen, but handle gracefully)
-                remaining_ttl = self.ttl_seconds
-            
-            # Update fields
-            if participants is not None:
-                existing["participants"] = participants
-            if state is not None:
-                existing["state"] = state.value
-            existing["last_activity_at"] = datetime.utcnow().isoformat()
-            
-            # Update with preserved TTL (don't reset to full TTL)
-            self._redis_client.setex(
-                key,
-                remaining_ttl,
-                json.dumps(existing),
-            )
-            logger.debug(f"Updated conversation {conversation_id} in Redis (TTL preserved: {remaining_ttl}s)")
-            return True
-        except Exception as e:
-            logger.error(f"Error updating conversation in Redis: {e}")
-            # Mark connection as potentially lost
-            self._connected = False
-            return False
+        key = self._get_key(conversation_id)
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                # Use WATCH for optimistic locking
+                self._redis_client.watch(key)
+                
+                # Read current state and TTL
+                existing_data = self._redis_client.get(key)
+                remaining_ttl = self._redis_client.ttl(key)
+                
+                if not existing_data:
+                    # Key doesn't exist (TTL=-2)
+                    self._redis_client.unwatch()
+                    return False
+                
+                existing = json.loads(existing_data)
+                
+                # Handle TTL values:
+                # TTL=-2: Key doesn't exist (already handled above)
+                # TTL=-1: Key exists but has no expiration (use default TTL)
+                # TTL>=0: Key exists with expiration (preserve remaining time)
+                if remaining_ttl == -1:
+                    # Key has no expiration, use default TTL
+                    remaining_ttl = self.ttl_seconds
+                elif remaining_ttl < 0:
+                    # Should not happen (TTL=-2 already handled), but use default as fallback
+                    logger.warning(f"Unexpected TTL value {remaining_ttl} for conversation {conversation_id}, using default")
+                    remaining_ttl = self.ttl_seconds
+                
+                # Update fields
+                if participants is not None:
+                    existing["participants"] = participants
+                if state is not None:
+                    existing["state"] = state.value
+                existing["last_activity_at"] = datetime.utcnow().isoformat()
+                
+                # Atomic update with preserved TTL using MULTI/EXEC transaction
+                pipe = self._redis_client.pipeline()
+                pipe.multi()
+                pipe.setex(
+                    key,
+                    remaining_ttl,
+                    json.dumps(existing),
+                )
+                result = pipe.execute()
+                
+                # If result is None, WATCH detected concurrent modification
+                if result is None:
+                    if attempt < max_retries - 1:
+                        logger.debug(f"Concurrent modification detected for {conversation_id}, retrying (attempt {attempt + 1})")
+                        continue
+                    else:
+                        logger.warning(f"Failed to update {conversation_id} after {max_retries} attempts due to concurrent modifications")
+                        return False
+                
+                logger.debug(f"Updated conversation {conversation_id} in Redis (TTL preserved: {remaining_ttl}s)")
+                return True
+            except Exception as e:
+                self._redis_client.unwatch()
+                if attempt < max_retries - 1:
+                    logger.debug(f"Error updating conversation {conversation_id}, retrying: {e}")
+                    continue
+                else:
+                    logger.error(f"Error updating conversation in Redis after {max_retries} attempts: {e}")
+                    # Mark connection as potentially lost
+                    self._connected = False
+                    return False
+        
+        return False
     
     def delete_conversation(self, conversation_id: str) -> bool:
         """Delete conversation from Redis."""
@@ -336,6 +418,183 @@ class RedisConversationStore(ConversationStore):
             # Mark connection as potentially lost
             self._connected = False
             return False
+    
+    def add_participant(
+        self,
+        conversation_id: str,
+        device_id: str,
+    ) -> bool:
+        """
+        Add participant to conversation atomically using Redis transaction with optimistic locking.
+        
+        Prevents race conditions in concurrent scenarios by using WATCH/MULTI/EXEC.
+        Retries up to 3 times if concurrent modification detected.
+        """
+        if not self._ensure_connected():
+            return False
+        
+        from src.shared.constants import MAX_GROUP_SIZE
+        from src.shared.conversation_types import ConversationState
+        
+        key = self._get_key(conversation_id)
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                # Use WATCH for optimistic locking
+                self._redis_client.watch(key)
+                
+                # Read current state and TTL
+                existing_data = self._redis_client.get(key)
+                remaining_ttl = self._redis_client.ttl(key)
+                
+                if not existing_data:
+                    # Key doesn't exist (TTL=-2)
+                    self._redis_client.unwatch()
+                    return False
+                
+                existing = json.loads(existing_data)
+                current_participants = set(existing["participants"])
+                
+                # Check if already a participant
+                if device_id in current_participants:
+                    self._redis_client.unwatch()
+                    return True  # Already a participant
+                
+                # Check group size limit
+                if len(current_participants) >= MAX_GROUP_SIZE:
+                    self._redis_client.unwatch()
+                    return False
+                
+                # Check conversation state
+                if ConversationState(existing["state"]) != ConversationState.ACTIVE:
+                    self._redis_client.unwatch()
+                    return False
+                
+                # Add participant
+                new_participants = list(current_participants) + [device_id]
+                existing["participants"] = new_participants
+                existing["last_activity_at"] = datetime.utcnow().isoformat()
+                
+                # Handle TTL
+                if remaining_ttl == -1:
+                    remaining_ttl = self.ttl_seconds
+                elif remaining_ttl < 0:
+                    remaining_ttl = self.ttl_seconds
+                
+                # Atomic update using MULTI/EXEC transaction
+                pipe = self._redis_client.pipeline()
+                pipe.multi()
+                pipe.setex(key, remaining_ttl, json.dumps(existing))
+                result = pipe.execute()
+                
+                # If result is None, WATCH detected concurrent modification
+                if result is None:
+                    if attempt < max_retries - 1:
+                        logger.debug(f"Concurrent modification detected for {conversation_id} add_participant, retrying (attempt {attempt + 1})")
+                        continue
+                    else:
+                        logger.warning(f"Failed to add participant {device_id} to {conversation_id} after {max_retries} attempts due to concurrent modifications")
+                        return False
+                
+                logger.debug(f"Added participant {device_id} to conversation {conversation_id}")
+                return True
+            except Exception as e:
+                self._redis_client.unwatch()
+                if attempt < max_retries - 1:
+                    logger.debug(f"Error adding participant to {conversation_id}, retrying: {e}")
+                    continue
+                else:
+                    logger.error(f"Error adding participant in Redis after {max_retries} attempts: {e}")
+                    self._connected = False
+                    return False
+        
+        return False
+    
+    def remove_participant(
+        self,
+        conversation_id: str,
+        device_id: str,
+    ) -> bool:
+        """
+        Remove participant from conversation atomically using Redis transaction with optimistic locking.
+        
+        Prevents race conditions in concurrent scenarios by using WATCH/MULTI/EXEC.
+        If all participants are removed, conversation transitions to Closed state.
+        Retries up to 3 times if concurrent modification detected.
+        """
+        if not self._ensure_connected():
+            return False
+        
+        from src.shared.conversation_types import ConversationState
+        
+        key = self._get_key(conversation_id)
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                # Use WATCH for optimistic locking
+                self._redis_client.watch(key)
+                
+                # Read current state and TTL
+                existing_data = self._redis_client.get(key)
+                remaining_ttl = self._redis_client.ttl(key)
+                
+                if not existing_data:
+                    # Key doesn't exist (TTL=-2)
+                    self._redis_client.unwatch()
+                    return False
+                
+                existing = json.loads(existing_data)
+                current_participants = set(existing["participants"])
+                
+                if device_id not in current_participants:
+                    self._redis_client.unwatch()
+                    return False
+                
+                # Remove participant
+                new_participants = list(current_participants - {device_id})
+                existing["participants"] = new_participants
+                existing["last_activity_at"] = datetime.utcnow().isoformat()
+                
+                # If no participants remain, close conversation
+                if not new_participants:
+                    existing["state"] = ConversationState.CLOSED.value
+                
+                # Handle TTL
+                if remaining_ttl == -1:
+                    remaining_ttl = self.ttl_seconds
+                elif remaining_ttl < 0:
+                    remaining_ttl = self.ttl_seconds
+                
+                # Atomic update using MULTI/EXEC transaction
+                pipe = self._redis_client.pipeline()
+                pipe.multi()
+                pipe.setex(key, remaining_ttl, json.dumps(existing))
+                result = pipe.execute()
+                
+                # If result is None, WATCH detected concurrent modification
+                if result is None:
+                    if attempt < max_retries - 1:
+                        logger.debug(f"Concurrent modification detected for {conversation_id} remove_participant, retrying (attempt {attempt + 1})")
+                        continue
+                    else:
+                        logger.warning(f"Failed to remove participant {device_id} from {conversation_id} after {max_retries} attempts due to concurrent modifications")
+                        return False
+                
+                logger.debug(f"Removed participant {device_id} from conversation {conversation_id}")
+                return True
+            except Exception as e:
+                self._redis_client.unwatch()
+                if attempt < max_retries - 1:
+                    logger.debug(f"Error removing participant from {conversation_id}, retrying: {e}")
+                    continue
+                else:
+                    logger.error(f"Error removing participant in Redis after {max_retries} attempts: {e}")
+                    self._connected = False
+                    return False
+        
+        return False
 
 
 class InMemoryConversationStore(ConversationStore):
@@ -390,6 +649,58 @@ class InMemoryConversationStore(ConversationStore):
         if state is not None:
             self._conversations[conversation_id]["state"] = state.value
         self._conversations[conversation_id]["last_activity_at"] = datetime.utcnow().isoformat()
+        return True
+    
+    def add_participant(
+        self,
+        conversation_id: str,
+        device_id: str,
+    ) -> bool:
+        """Add participant to conversation in memory."""
+        if conversation_id not in self._conversations:
+            return False
+        
+        conversation = self._conversations[conversation_id]
+        current_participants = set(conversation["participants"])
+        
+        # Check if already a participant
+        if device_id in current_participants:
+            return True
+        
+        # Check group size limit
+        from src.shared.constants import MAX_GROUP_SIZE
+        if len(current_participants) >= MAX_GROUP_SIZE:
+            return False
+        
+        # Add participant
+        conversation["participants"] = list(current_participants) + [device_id]
+        conversation["last_activity_at"] = datetime.utcnow().isoformat()
+        return True
+    
+    def remove_participant(
+        self,
+        conversation_id: str,
+        device_id: str,
+    ) -> bool:
+        """Remove participant from conversation in memory."""
+        if conversation_id not in self._conversations:
+            return False
+        
+        conversation = self._conversations[conversation_id]
+        current_participants = set(conversation["participants"])
+        
+        if device_id not in current_participants:
+            return False
+        
+        # Remove participant
+        new_participants = list(current_participants - {device_id})
+        conversation["participants"] = new_participants
+        conversation["last_activity_at"] = datetime.utcnow().isoformat()
+        
+        # If no participants remain, close conversation
+        if not new_participants:
+            conversation["state"] = ConversationState.CLOSED.value
+        
         return True
     
     def delete_conversation(self, conversation_id: str) -> bool:

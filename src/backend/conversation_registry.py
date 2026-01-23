@@ -128,6 +128,8 @@ class ConversationRegistry:
         """
         Add participant to conversation per State Machines (#7), Section 4.
         
+        Uses atomic store operations to prevent race conditions in concurrent scenarios.
+        
         Args:
             conversation_id: Conversation identifier.
             device_id: Device ID to add as participant.
@@ -135,35 +137,40 @@ class ConversationRegistry:
         Returns:
             True if participant added, False if conversation not found, closed, or limit exceeded.
         """
-        # Get conversation from store
-        conversation = self.store.get_conversation(conversation_id)
-        if not conversation:
-            return False
-        
-        # Check conversation state
-        if ConversationState(conversation["state"]) != ConversationState.ACTIVE:
-            return False
-        
-        # Check group size limit
-        current_participants = set(conversation["participants"])
-        if len(current_participants) >= MAX_GROUP_SIZE:
-            return False
-        
-        # Validate device
+        # Validate device first (before any store operations)
         if not self.device_registry.is_device_active(device_id):
             logger.warning(f"Cannot add revoked device {device_id} to conversation")
             return False
         
-        # Check if already a participant
-        if device_id in current_participants:
-            return True  # Already a participant, consider it success
-        
-        # Add participant
-        new_participants = list(current_participants) + [device_id]
-        success = self.store.update_conversation(
-            conversation_id=conversation_id,
-            participants=new_participants,
-        )
+        # Use store's atomic add_participant method if available
+        # Otherwise fall back to update_conversation (which uses transactions)
+        if hasattr(self.store, 'add_participant'):
+            success = self.store.add_participant(conversation_id, device_id)
+        else:
+            # Fallback: Get conversation and update (store handles atomicity)
+            conversation = self.store.get_conversation(conversation_id)
+            if not conversation:
+                return False
+            
+            # Check conversation state
+            if ConversationState(conversation["state"]) != ConversationState.ACTIVE:
+                return False
+            
+            # Check group size limit
+            current_participants = set(conversation["participants"])
+            if len(current_participants) >= MAX_GROUP_SIZE:
+                return False
+            
+            # Check if already a participant
+            if device_id in current_participants:
+                return True  # Already a participant, consider it success
+            
+            # Add participant (update_conversation uses atomic transaction)
+            new_participants = list(current_participants) + [device_id]
+            success = self.store.update_conversation(
+                conversation_id=conversation_id,
+                participants=new_participants,
+            )
         
         if success:
             # Update participant index cache
@@ -184,6 +191,7 @@ class ConversationRegistry:
         Remove participant from conversation per State Machines (#7), Section 4.
         
         If all participants are removed, conversation transitions to Closed state.
+        Uses atomic store operations to prevent race conditions in concurrent scenarios.
         
         Args:
             conversation_id: Conversation identifier.
@@ -192,31 +200,36 @@ class ConversationRegistry:
         Returns:
             True if participant removed, False if conversation not found or participant not in conversation.
         """
-        # Get conversation from store
-        conversation = self.store.get_conversation(conversation_id)
-        if not conversation:
-            return False
-        
-        current_participants = set(conversation["participants"])
-        if device_id not in current_participants:
-            return False
-        
-        # Remove participant
-        new_participants = list(current_participants - {device_id})
-        
-        # If no participants remain, close conversation
-        if not new_participants:
-            success = self.store.update_conversation(
-                conversation_id=conversation_id,
-                state=ConversationState.CLOSED,
-            )
-            if success:
-                logger.debug(f"Conversation {conversation_id} closed (all participants removed)")
+        # Use store's atomic remove_participant method if available
+        # Otherwise fall back to update_conversation (which uses transactions)
+        if hasattr(self.store, 'remove_participant'):
+            success = self.store.remove_participant(conversation_id, device_id)
         else:
-            success = self.store.update_conversation(
-                conversation_id=conversation_id,
-                participants=new_participants,
-            )
+            # Fallback: Get conversation and update (store handles atomicity)
+            conversation = self.store.get_conversation(conversation_id)
+            if not conversation:
+                return False
+            
+            current_participants = set(conversation["participants"])
+            if device_id not in current_participants:
+                return False
+            
+            # Remove participant
+            new_participants = list(current_participants - {device_id})
+            
+            # If no participants remain, close conversation
+            if not new_participants:
+                success = self.store.update_conversation(
+                    conversation_id=conversation_id,
+                    state=ConversationState.CLOSED,
+                )
+                if success:
+                    logger.debug(f"Conversation {conversation_id} closed (all participants removed)")
+            else:
+                success = self.store.update_conversation(
+                    conversation_id=conversation_id,
+                    participants=new_participants,
+                )
         
         if success:
             # Update participant index cache

@@ -20,10 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frontend banner warning when demo mode auto-creates conversations
 
 ### Fixed
+- Critical race condition fixes in Redis conversation store
+  - Fixed race conditions in `add_participant()` and `remove_participant()` using WATCH/MULTI/EXEC transactions
+  - Fixed race condition in `update_conversation()` TTL preservation using optimistic locking with retry logic
+  - All participant management operations now use atomic Redis transactions to prevent data corruption under concurrent access
+  - Retry logic (up to 3 attempts) handles concurrent modification conflicts gracefully
+  - Properly distinguishes TTL=-2 (key doesn't exist) from TTL=-1 (no expiration) to prevent silent failures
 - Redis conversation store TTL handling improvements
   - Fixed TTL reset behavior: updates now preserve remaining TTL instead of resetting to full duration
   - Prevents unexpected expiration timing when conversations are updated frequently
   - Uses Redis TTL command to get remaining time before updating
+  - Proper handling of TTL=-2 (key deleted) vs TTL=-1 (no expiration) scenarios
 - Participant cache synchronization with Redis TTL expiration
   - Fixed cache staleness: `get_conversation_participants()` always reads from store to ensure consistency
   - Added cache invalidation when conversations expire or are deleted
@@ -38,10 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added public `is_demo_mode()` method to DeviceRegistry (replaces unsafe private attribute access)
   - Updated conversation_api.py to use proper API instead of `getattr(..., '_demo_mode')`
 - Frontend demo mode banner integration
-  - Fixed dead code: replaced polling with storage event listener for efficiency
+  - Fixed same-tab update detection: added polling in addition to storage events (storage events only fire cross-tab)
   - Backend now sets `X-Demo-Mode-Auto-Create` header in responses when auto-creating conversations
-  - Frontend checks header and sets localStorage flag (no more polling every second)
-  - Banner listens to storage events for real-time updates
+  - Frontend checks header and sets localStorage flag with both storage events and polling
+  - Banner now detects auto-creation in both same-tab and cross-tab scenarios
+- Production error logging security
+  - Error logging now conditional on development mode (import.meta.env.DEV)
+  - Production logs only show generic errors without exposing details (conversation_id, error_code, request_id)
+  - Prevents sensitive information from appearing in browser console in production
 - Demo Mode for reliable Heroku multi-device demos
   - DEMO_MODE environment variable enables HTTP-first messaging
   - Device activity tracking with 5-minute TTL (devices considered "active" if seen within TTL)

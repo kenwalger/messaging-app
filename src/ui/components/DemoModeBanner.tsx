@@ -53,8 +53,14 @@ export const DemoModeBanner: React.FC<DemoModeBannerProps> = ({ enabled }) => {
     }
     window.addEventListener('storage', handleStorageChange)
     
+    // Also poll for same-tab updates (storage events don't fire for same-tab changes)
+    const pollInterval = setInterval(() => {
+      checkForAutoCreate()
+    }, 1000) // Check every second
+    
     return () => {
       window.removeEventListener('storage', handleStorageChange)
+      clearInterval(pollInterval)
     }
   }, [enabled])
 
