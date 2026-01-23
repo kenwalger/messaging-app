@@ -547,14 +547,17 @@ The frontend implements an interactive message send path with optimistic updates
 
 **API Call:**
 - Frontend calls `POST /api/message/send` with required fields:
-  - `conversation_id`: Conversation identifier
+  - `conversation_id`: Conversation identifier (REQUIRED - always included in request body)
   - `payload`: Message payload (encoding depends on `ENCRYPTION_MODE`):
     - `ENCRYPTION_MODE=client` (default/production): Must be hex or base64 encoded encrypted bytes
     - `ENCRYPTION_MODE=server` (dev/POC only): Can be plaintext; server encrypts before persistence/delivery
+  - `encryption`: Encryption mode indicator (optional, for backend logging/diagnostics: "client" or "server")
   - `expiration`: ISO 8601 timestamp (optional, defaults to server timestamp + 7 days)
+- Backend validates request using Pydantic `SendMessageRequest` model (ensures conversation_id is present)
 - Backend assigns `message_id` server-side (UUID v4)
 - Backend uses server timestamp (not client-provided)
-  - `X-Device-ID` header for device authentication
+- Backend logs received conversation_id for debugging
+- `X-Device-ID` header for device authentication
 - Backend validates request:
   - Required fields present (message_id, conversation_id, payload, timestamp)
   - Message ID is valid UUID v4
@@ -608,9 +611,13 @@ The frontend implements an interactive message send path with optimistic updates
 
 1. **Message Send (Frontend → Backend)**:
    - User types message in UI and clicks send
-   - Frontend creates message with conversation_id, payload, optional expiration
+   - Frontend ALWAYS includes conversation_id in request body (does not rely on implicit state)
+   - Frontend validates conversation_id is present before sending
    - Message sent via `POST /api/message/send` (HTTP, not WebSocket for sending)
+   - Backend validates request using Pydantic model (ensures conversation_id is required)
+   - Backend logs received conversation_id for debugging
    - Backend validates device is active, conversation exists and is active, sender is participant
+   - Backend returns 400 (not 404) if conversation_id is missing or conversation not found
    - Backend assigns message_id (UUID v4) and uses server timestamp
    - Backend enqueues message for delivery
    - Frontend optimistically updates UI with message in PENDING state ("Queued")

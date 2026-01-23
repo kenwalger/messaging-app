@@ -447,6 +447,33 @@ class CreateConversationRequest(BaseModel):
     }
 
 
+class SendMessageRequest(BaseModel):
+    """
+    Request model for sending a message.
+    
+    Per API Contracts (#10), Section 3.3:
+    - conversation_id: Required string identifying the conversation
+    - payload: Required string containing encrypted or plaintext message
+    - encryption: Optional string indicating encryption mode (for logging/diagnostics)
+    - expiration: Optional ISO timestamp string for message expiration
+    """
+    conversation_id: str = Field(..., description="Conversation ID (required)")
+    payload: str = Field(..., description="Message payload (encrypted or plaintext)")
+    encryption: Optional[str] = Field(None, description="Encryption mode indicator (client|server, for diagnostics)")
+    expiration: Optional[str] = Field(None, description="ISO timestamp string for message expiration")
+    
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "conversation_id": "conv-123",
+                "payload": "encrypted_message_data",
+                "encryption": "client",
+                "expiration": "2024-12-31T23:59:59Z"
+            }
+        }
+    }
+
+
 @app.post("/api/conversation/create")
 async def create_conversation(
     request: CreateConversationRequest,
@@ -585,7 +612,7 @@ async def get_conversation_info(
 
 @app.post("/api/message/send")
 async def send_message(
-    request_body: Request,
+    request: SendMessageRequest,
     device_id: str = Depends(get_device_id),
 ) -> JSONResponse:
     """
@@ -734,13 +761,17 @@ async def send_message(
         logger.warning(f"[DEMO MODE] Device {device_id} not in Active state, but allowing message send (activity TTL)")
     
     # Extract required request fields per API Contracts (#10), Section 3.3
-    # Request body: { conversation_id: string, payload: string, expiration?: ISO timestamp }
-    request_data = await request_body.json()
-    conversation_id = request_data.get("conversation_id", "")
-    payload = request_data.get("payload", "")  # Encrypted payload (base64 or hex string)
-    expiration = request_data.get("expiration")  # ISO timestamp string (optional)
+    # Pydantic model ensures conversation_id and payload are present and non-empty
+    conversation_id = request.conversation_id
+    payload = request.payload
+    expiration = request.expiration
+    encryption_mode_indicator = request.encryption  # For logging/diagnostics only
+    
+    # Log received conversation_id for debugging
+    logger.info(f"Message send request received: conversation_id={conversation_id}, device_id={device_id}, encryption_indicator={encryption_mode_indicator}")
     
     # Validation check 1: conversation_id_required
+    # Pydantic already validates this, but double-check for safety
     if not conversation_id:
         reason_code = "conversation_id_required"
         if logging_service:
@@ -934,8 +965,8 @@ async def send_message(
     # Check if conversation is ACTIVE
     is_active = conversation_registry.is_conversation_active(conversation_id)
     
-    # If conversation doesn't exist, return 404
-    # Note: 404 errors don't use structured format (per API Contracts)
+    # If conversation doesn't exist, return 400 (not 404) per requirements
+    # Missing conversation_id should return 400, not 404
     if not conversation_exists:
         reason_code = "conversation_not_found"
         if logging_service:
@@ -948,9 +979,10 @@ async def send_message(
                     "reason_code": reason_code,
                 },
             )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation not found",
+        return create_error_response(
+            reason_code=reason_code,
+            message=f"Conversation not found: {conversation_id}",
+            request_id=request_id,
         )
     
     # If conversation exists but is not active, return 400

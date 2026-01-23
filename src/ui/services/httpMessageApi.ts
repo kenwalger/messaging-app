@@ -103,11 +103,18 @@ export class HttpMessageApiService implements MessageApiService {
     }
 
     // Prepare request per API Contracts (#10), Section 3.3
+    // ALWAYS include conversation_id in request body (required field)
+    // Do NOT rely on implicit state or previous /join calls
     const requestBody = {
-      recipients: [], // Backend will determine recipients from conversation
+      conversation_id: conversationId, // REQUIRED: Always include active conversation ID
       payload: payload, // Encrypted (client mode) or plaintext (server mode)
+      encryption: encryptionMode, // Encryption mode indicator (for backend logging/diagnostics)
       expiration: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-      conversation_id: conversationId,
+    }
+    
+    // Validate conversation_id is present before sending
+    if (!conversationId) {
+      throw new Error('conversation_id is required but was not provided')
     }
 
     try {
