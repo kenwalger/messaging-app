@@ -320,6 +320,38 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] CORS configuration for deployed frontend (`FRONTEND_ORIGIN` environment variable)
 - [x] WebSocket support (native Heroku WebSocket support, uses `wss://` for HTTPS)
 
+## Phase 6.3: Redis-Backed Conversation Registry ✅
+
+**Status:** Completed
+
+### Redis Storage Implementation
+- [x] ConversationStore abstraction with Redis and InMemory implementations
+- [x] Redis-backed storage using Heroku Redis addon (REDIS_URL)
+- [x] Automatic fallback to in-memory store in demo mode when Redis unavailable
+- [x] Configurable TTL for conversations (CONVERSATION_TTL_SECONDS, default: 30 minutes)
+- [x] Conversations persist across dyno restarts and multiple dynos
+- [x] Only conversation metadata stored (no message content, encryption keys, or decrypted payloads)
+
+### Integration
+- [x] Updated ConversationRegistry to use ConversationStore abstraction
+- [x] Updated conversation create/join/send endpoints to use Redis-backed store
+- [x] Demo mode auto-creation of conversations in Redis when not found
+- [x] Enhanced logging for Redis connection status and conversation operations
+
+### Frontend Support
+- [x] Frontend banner warning when demo mode auto-creates conversations
+- [x] Non-blocking UI indicator for conversation state resets
+
+### Testing
+- [x] Unit tests for ConversationStore implementations
+- [x] Integration tests for ConversationRegistry with store abstraction
+- [x] Tests verify Redis persistence and fallback behavior
+
+### Documentation
+- [x] README updated with Redis configuration and Heroku setup instructions
+- [x] Environment variable documentation (REDIS_URL, CONVERSATION_TTL_SECONDS)
+- [x] Deployment notes for Heroku Redis addon
+
 ## Phase 6.2: Demo Mode for Reliable Multi-Device Demos ✅
 
 **Status:** Completed

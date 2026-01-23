@@ -319,11 +319,15 @@ heroku create abiqua-asset-management
 heroku buildpacks:add --index 1 heroku/nodejs
 heroku buildpacks:add --index 2 heroku/python
 
+# Add Heroku Redis addon (required for persistent conversation storage)
+heroku addons:create heroku-redis:mini
+
 # Set environment variables
 heroku config:set ENCRYPTION_MODE=client
 heroku config:set FRONTEND_ORIGIN=https://abiqua-asset-management.herokuapp.com
 heroku config:set ENVIRONMENT=production
 heroku config:set DEMO_MODE=true  # Enable demo mode for reliable multi-device demos
+heroku config:set CONVERSATION_TTL_SECONDS=1800  # Optional: 30 minutes (default)
 
 # Deploy
 git push heroku main
@@ -331,12 +335,14 @@ git push heroku main
 
 **Key Features:**
 - Single dyno deployment (backend serves frontend static files)
+- **Redis-backed conversation storage** (persists across dyno restarts and multiple dynos)
 - WebSocket support (native Heroku WebSocket support, best-effort delivery in demo mode)
 - Multi-device support (each browser generates unique device ID, stored in localStorage)
 - Dynamic conversation creation (auto-creates conversation on first load)
 - Join conversation flow (share conversation ID to join from multiple devices)
 - Encryption mode configurable via `ENCRYPTION_MODE` environment variable
 - **Demo Mode**: HTTP-first messaging with lenient device validation (enabled via `DEMO_MODE=true`)
+- Automatic fallback to in-memory store in demo mode when Redis unavailable
 
 **Demo Mode:**
 Demo mode (`DEMO_MODE=true`) enables reliable multi-device demos on Heroku by:
@@ -399,6 +405,13 @@ The server will start on `http://127.0.0.1:8000` by default.
   - `server`: Accept plaintext payloads, encrypt server-side (dev/POC mode only)
 - `ENCRYPTION_KEY_SEED`: Seed for server-side encryption key (dev/POC mode only, default: `dev-mode-encryption-key-seed`)
 - `ENVIRONMENT`: Environment mode (default: `development`)
+- `REDIS_URL`: Redis connection URL for persistent conversation storage (Heroku Redis addon)
+  - If not set and `DEMO_MODE=true`: Falls back to in-memory store (state lost on restart)
+  - If not set and `DEMO_MODE=false`: Raises error (Redis required for production)
+  - Automatically detected from Heroku Redis addon
+- `CONVERSATION_TTL_SECONDS`: Time-to-live for conversations in Redis (default: 1800 seconds / 30 minutes)
+  - Conversations automatically expire after TTL
+  - Configurable for different retention policies
   - `development`, `dev`, `local`: Development mode (permissive CORS, auto-provisioning)
   - `production`: Production mode (strict CORS, no auto-provisioning)
 

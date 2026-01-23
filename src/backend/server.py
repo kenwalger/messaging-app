@@ -98,7 +98,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     # Initialize core services
     _device_registry = DeviceRegistry(demo_mode=DEMO_MODE)
-    _conversation_registry = ConversationRegistry(_device_registry)
+    _conversation_registry = ConversationRegistry(_device_registry, demo_mode=DEMO_MODE)
     _identity_enforcement = IdentityEnforcementService(_device_registry)
     _logging_service = LoggingService()
     _websocket_manager = FastAPIWebSocketManager()
@@ -971,7 +971,7 @@ async def send_message(
     # In demo mode: Auto-create conversation if it doesn't exist (for multi-device demos)
     # This handles cases where conversation was created on a different dyno or lost due to restart
     if not conversation_exists and DEMO_MODE:
-        logger.info(f"[DEMO MODE] Auto-creating conversation {conversation_id} for device {device_id} during message send")
+        logger.warning(f"[DEMO MODE] Auto-creating conversation {conversation_id} for device {device_id} during message send (conversation_not_found)")
         # Create conversation with the sending device as the first participant
         success = conversation_registry.register_conversation(
             conversation_id=conversation_id,
@@ -979,6 +979,17 @@ async def send_message(
         )
         if success:
             logger.info(f"[DEMO MODE] Successfully auto-created conversation {conversation_id}")
+            # Log event for observability
+            if logging_service:
+                logging_service.log_event(
+                    "demo_mode_auto_create",
+                    {
+                        "request_id": request_id,
+                        "conversation_id": conversation_id,
+                        "device_id": device_id,
+                        "reason": "conversation_not_found",
+                    },
+                )
             # Re-fetch participants after creation
             participants = conversation_registry.get_conversation_participants(conversation_id)
             conversation_exists = True

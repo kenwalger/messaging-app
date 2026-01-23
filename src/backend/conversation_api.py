@@ -239,7 +239,7 @@ class ConversationService:
         # This handles cases where conversation was created on a different dyno or lost due to restart
         demo_mode = getattr(self.device_registry, '_demo_mode', False)
         if not conversation_exists and demo_mode:
-            logger.info(f"[DEMO MODE] Auto-creating conversation {conversation_id} for device {device_id}")
+            logger.warning(f"[DEMO MODE] Auto-creating conversation {conversation_id} for device {device_id} (conversation_not_found)")
             # Create conversation with the joining device as the first participant
             success = self.conversation_registry.register_conversation(
                 conversation_id=conversation_id,
@@ -247,8 +247,21 @@ class ConversationService:
             )
             if success:
                 logger.info(f"[DEMO MODE] Successfully auto-created conversation {conversation_id}")
+                # Log event for observability
+                if self.log_service:
+                    self.log_service.log_event(
+                        "demo_mode_auto_create",
+                        {
+                            "conversation_id": conversation_id,
+                            "device_id": device_id,
+                            "reason": "conversation_not_found",
+                        },
+                    )
             else:
-                logger.warning(f"[DEMO MODE] Failed to auto-create conversation {conversation_id} (may already exist)")
+                logger.warning(f"[DEMO MODE] Failed to auto-create conversation {conversation_id} (may have been created by another request)")
+                # Re-check existence in case it was created by another request
+                conversation_exists = self.conversation_registry.conversation_exists(conversation_id)
+                is_active = self.conversation_registry.is_conversation_active(conversation_id)
         elif not is_active:
             return {
                 "status": "error",

@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Redis-backed conversation registry for Heroku multi-dyno deployments
+  - ConversationStore abstraction with Redis and InMemory implementations
+  - Redis-backed storage using Heroku Redis addon (REDIS_URL)
+  - Automatic fallback to in-memory store in demo mode when Redis unavailable
+  - Configurable TTL for conversations (CONVERSATION_TTL_SECONDS, default: 30 minutes)
+  - Conversations persist across dyno restarts and multiple dynos
+  - Only conversation metadata stored (no message content, encryption keys, or decrypted payloads)
+  - Enhanced logging for Redis connection status and conversation operations
+  - Demo mode auto-creation of conversations in Redis when not found
+  - Frontend banner warning when demo mode auto-creates conversations
 - Demo Mode for reliable Heroku multi-device demos
   - DEMO_MODE environment variable enables HTTP-first messaging
   - Device activity tracking with 5-minute TTL (devices considered "active" if seen within TTL)

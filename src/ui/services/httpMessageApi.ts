@@ -147,15 +147,21 @@ export class HttpMessageApiService implements MessageApiService {
         const errorMessage = errorData.message || `HTTP ${response.status}: ${response.statusText}`
         const errorCode = errorData.error_code || 'unknown_error'
         
-        // Log detailed error for debugging (development only)
-        if (import.meta.env.DEV) {
-          console.error('[HttpMessageApi] Message send failed:', {
-            status: response.status,
-            error_code: errorCode,
-            message: errorMessage,
-            conversation_id: conversationId,
-            request_id: errorData.request_id,
-          })
+        // Log detailed error for debugging (always log for troubleshooting)
+        console.error('[HttpMessageApi] Message send failed:', {
+          status: response.status,
+          error_code: errorCode,
+          message: errorMessage,
+          conversation_id: conversationId,
+          request_id: errorData.request_id,
+        })
+        
+        // Check if this is a demo_mode_auto_create scenario
+        // Backend may have auto-created the conversation, so we should retry
+        if (errorCode === 'conversation_not_found' && import.meta.env.VITE_DEMO_MODE === 'true') {
+          // Set flag for demo mode banner
+          localStorage.setItem('demo_mode_auto_create', 'true')
+          console.log('[HttpMessageApi] Demo mode: Conversation may be auto-created on retry')
         }
         
         throw new Error(errorMessage)
