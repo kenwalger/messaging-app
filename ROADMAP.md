@@ -542,9 +542,11 @@ This roadmap outlines the planned development phases for AAM. All implementation
 
 ### Endpoint Implementation
 - [x] POST `/api/message/send` endpoint per API Contracts (#10), Section 3.3
-- [x] Request payload validation:
+- [x] Pydantic `SendMessageRequest` model for explicit request validation:
   - Required fields: `conversation_id`, `payload`
-  - Optional field: `expiration` (ISO 8601, defaults to server timestamp + 7 days)
+  - Optional fields: `encryption` (for logging/diagnostics), `expiration` (ISO 8601, defaults to server timestamp + 7 days)
+  - Ensures conversation_id is always present in request body
+- [x] Request payload validation:
   - Payload encoding validation (base64 or hex)
   - Payload size validation (≤ 50KB per MAX_MESSAGE_PAYLOAD_SIZE_KB)
 - [x] Server-side assignment:
@@ -553,9 +555,14 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Device validation:
   - Validates device exists and is ACTIVE (returns 403 if inactive)
 - [x] Conversation validation:
-  - Checks conversation existence (returns 404 if not found)
+  - Checks conversation existence (returns 400 if not found, not 404)
   - Checks conversation state (returns 400 if not ACTIVE)
   - Derives recipients from conversation participants (excluding sender)
+  - Logs received conversation_id for debugging
+- [x] Frontend contract compliance:
+  - Frontend always includes conversation_id in request body (does not rely on implicit state)
+  - Frontend validates conversation_id is present before sending
+  - Frontend includes encryption mode indicator in request body
 - [x] Message relay integration:
   - Calls `MessageRelayService.relay_message()` to register message in delivery state machine
   - Message enters PendingDelivery state
@@ -563,8 +570,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
   - ACK timer started (30s timeout)
 - [x] Response handling:
   - Returns 202 Accepted on success with `{"message_id": "<uuid>", "timestamp": "<ISO 8601>", "status": "queued"}`
-  - Returns 400 Bad Request for validation errors
-  - Returns 404 Not Found for non-existent conversations
+  - Returns 400 Bad Request for validation errors (including missing conversation_id and conversation_not_found)
   - Returns 500 Internal Server Error for delivery failures
 - [x] Logging and observability:
   - Logs message send attempts (metadata only, no content) using LogEventType.MESSAGE_ATTEMPTED

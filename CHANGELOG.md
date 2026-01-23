@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Behavior explicitly gated behind DEMO_MODE flag (no production impact)
 
 ### Fixed
+- Message send endpoint contract mismatch (conversation_id handling)
+  - Added Pydantic `SendMessageRequest` model to explicitly require conversation_id in request body
+  - Changed conversation_not_found error from 404 to 400 Bad Request (per requirements)
+  - Added logging for received conversation_id to aid debugging
+  - Frontend now always includes conversation_id and encryption mode in request body
+  - Frontend validates conversation_id is present before sending
+  - Fixes 404 conversation_not_found errors when sending messages
 - Demo mode fixes for reliable Heroku messaging
   - Fixed DEMO_MODE default to TRUE on Heroku (detected via DYNO env var - Heroku-specific, not PORT)
   - Fixed missing mark_device_seen() calls in HTTP message send endpoint
