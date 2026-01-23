@@ -121,14 +121,13 @@ export class HttpMessageApiService implements MessageApiService {
       throw new Error(error)
     }
     
-    // Log request details for debugging (development only)
-    if (import.meta.env.DEV) {
-      console.log('[HttpMessageApi] Sending message:', {
-        conversation_id: conversationId,
-        payload_length: payload.length,
-        encryption_mode: encryptionMode,
-      })
-    }
+    // Log request details for debugging (always log in production for troubleshooting)
+    console.log('[HttpMessageApi] Sending message:', {
+      conversation_id: conversationId,
+      payload_length: payload.length,
+      encryption_mode: encryptionMode,
+      api_base_url: this.apiBaseUrl,
+    })
 
     try {
       // Send message via HTTP POST

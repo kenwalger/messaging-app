@@ -232,7 +232,24 @@ class ConversationService:
             }
         
         # Check if conversation exists and is active
-        if not self.conversation_registry.is_conversation_active(conversation_id):
+        conversation_exists = self.conversation_registry.conversation_exists(conversation_id)
+        is_active = self.conversation_registry.is_conversation_active(conversation_id)
+        
+        # In demo mode: Auto-create conversation if it doesn't exist (for multi-device demos)
+        # This handles cases where conversation was created on a different dyno or lost due to restart
+        demo_mode = getattr(self.device_registry, '_demo_mode', False)
+        if not conversation_exists and demo_mode:
+            logger.info(f"[DEMO MODE] Auto-creating conversation {conversation_id} for device {device_id}")
+            # Create conversation with the joining device as the first participant
+            success = self.conversation_registry.register_conversation(
+                conversation_id=conversation_id,
+                participants=[device_id],
+            )
+            if success:
+                logger.info(f"[DEMO MODE] Successfully auto-created conversation {conversation_id}")
+            else:
+                logger.warning(f"[DEMO MODE] Failed to auto-create conversation {conversation_id} (may already exist)")
+        elif not is_active:
             return {
                 "status": "error",
                 "error_code": 404,

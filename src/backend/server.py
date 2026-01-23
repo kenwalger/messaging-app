@@ -965,14 +965,50 @@ async def send_message(
     # Check if conversation is ACTIVE
     is_active = conversation_registry.is_conversation_active(conversation_id)
     
+    # Enhanced logging for debugging conversation_not_found issues
+    logger.debug(f"Conversation check: conversation_id={conversation_id}, exists={conversation_exists}, is_active={is_active}, participants={participants}")
+    
+    # In demo mode: Auto-create conversation if it doesn't exist (for multi-device demos)
+    # This handles cases where conversation was created on a different dyno or lost due to restart
+    if not conversation_exists and DEMO_MODE:
+        logger.info(f"[DEMO MODE] Auto-creating conversation {conversation_id} for device {device_id} during message send")
+        # Create conversation with the sending device as the first participant
+        success = conversation_registry.register_conversation(
+            conversation_id=conversation_id,
+            participants=[device_id],
+        )
+        if success:
+            logger.info(f"[DEMO MODE] Successfully auto-created conversation {conversation_id}")
+            # Re-fetch participants after creation
+            participants = conversation_registry.get_conversation_participants(conversation_id)
+            conversation_exists = True
+            is_active = True
+        else:
+            logger.warning(f"[DEMO MODE] Failed to auto-create conversation {conversation_id} (may have been created by another request)")
+            # Try to get participants again in case it was created by another request
+            participants = conversation_registry.get_conversation_participants(conversation_id)
+            conversation_exists = conversation_registry.conversation_exists(conversation_id)
+            is_active = conversation_registry.is_conversation_active(conversation_id)
+    
     # If conversation doesn't exist, return 400 (not 404) per requirements
     # Missing conversation_id should return 400, not 404
     if not conversation_exists:
         reason_code = "conversation_not_found"
+        # Log detailed error with all available information
+        logger.error(
+            f"Message send rejected: {reason_code} - conversation_id={conversation_id}, device_id={device_id}, participants_returned={participants}",
+            extra={
+                "request_id": request_id,
+                "device_id": device_id,
+                "conversation_id": conversation_id,
+                "reason_code": reason_code,
+                "participants": list(participants) if participants else [],
+            },
+        )
         if logging_service:
-            logger.warning(
-                f"Message send rejected: {reason_code}",
-                extra={
+            logging_service.log_event(
+                "message_send_rejected",
+                {
                     "request_id": request_id,
                     "device_id": device_id,
                     "conversation_id": conversation_id,

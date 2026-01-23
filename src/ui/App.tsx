@@ -272,13 +272,17 @@ export const App: React.FC<AppProps> = ({
     ): Promise<MessageViewModel> => {
       // Validate conversation ID is present
       if (!conversationId) {
-        throw new Error('Conversation ID is required to send a message')
+        const error = 'Conversation ID is required to send a message'
+        console.error('[App]', error, { selectedConversationId, currentConversationId })
+        throw new Error(error)
       }
       
-      // Log for debugging (development only)
-      if (import.meta.env.DEV) {
-        console.log(`[App] Sending message to conversation: ${conversationId}`)
-      }
+      // Log for debugging (always log for troubleshooting)
+      console.log(`[App] Sending message to conversation: ${conversationId}`, {
+        selectedConversationId,
+        currentConversationId,
+        conversationExists: conversations.some(c => c.conversation_id === conversationId),
+      })
       
       // Send message via API
       const message = await messageApi.sendMessage(conversationId, senderId, content);
