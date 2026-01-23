@@ -542,6 +542,7 @@ async def create_conversation(
             "conversation_id": result.get("conversation_id"),
             "participants": result.get("participants", participants),
             "status": "success",
+            "created": result.get("created", True),  # Include created field for frontend logging
         }
     else:
         # Error response with structured format
