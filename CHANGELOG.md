@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Behavior explicitly gated behind DEMO_MODE flag (no production impact)
 
 ### Fixed
+- Demo mode activity TTL refresh bug
+  - Fixed missing mark_device_seen() calls in HTTP message send endpoint
+  - Now called early (before validation) and after validation (before relay)
+  - Ensures activity TTL is refreshed on every HTTP message send
+  - Critical for HTTP-first messaging in demo mode
 - TypeScript compilation errors in Heroku build
   - Fixed missing props destructuring in App.tsx (currentConversationId, onConversationJoined)
   - Fixed unused parameter warnings in MessagingView.tsx (deviceId) and messageApi.ts (content)

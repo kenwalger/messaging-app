@@ -617,6 +617,12 @@ async def send_message(
     device_registry = get_device_registry()
     logging_service = get_logging_service()
     
+    # Demo mode: Mark device as seen early (for activity TTL tracking)
+    # This must be called before validation to refresh activity TTL for HTTP-first messaging
+    if DEMO_MODE:
+        device_registry.mark_device_seen(device_id)
+        logger.debug(f"[DEMO MODE] Device {device_id} marked as seen (activity TTL refreshed early)")
+    
     # Validate device exists and is ACTIVE
     # Development mode: Auto-provision devices for local development convenience
     if is_development and not device_registry.is_device_active(device_id):
@@ -1015,6 +1021,12 @@ async def send_message(
                 "timestamp": message_timestamp.isoformat(),
             },
         )
+    
+    # Demo mode: Mark device as seen again after successful validation
+    # This ensures activity TTL is refreshed on every HTTP message send
+    if DEMO_MODE:
+        device_registry.mark_device_seen(device_id)
+        logger.debug(f"[DEMO MODE] Device {device_id} activity TTL refreshed after message validation")
     
     # Relay message via MessageRelayService (enters PendingDelivery state)
     message_relay = get_message_relay()
