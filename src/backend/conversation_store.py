@@ -609,15 +609,17 @@ class InMemoryConversationStore(ConversationStore):
     def __init__(self):
         """Initialize in-memory conversation store."""
         self._conversations: Dict[str, Dict] = {}
+        self._lock = Lock()  # Thread-safety for concurrent access
         logger.warning("Using in-memory conversation store (state will be lost on restart)")
     
     def get_conversation(self, conversation_id: str) -> Optional[Dict]:
         """Get conversation from memory (thread-safe)."""
         with self._lock:
-            # Return a copy to prevent external modification
+            # Return a deep copy to prevent external modification of nested structures
             conversation = self._conversations.get(conversation_id)
             if conversation:
-                return conversation.copy()
+                # Deep copy to prevent modification of participants list and other nested data
+                return copy.deepcopy(conversation)
             return None
     
     def create_conversation(
