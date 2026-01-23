@@ -298,6 +298,49 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Controller API endpoints: `/api/device/provision`, `/api/device/provision/confirm`, `/api/device/revoke`
 - [x] Conversation API endpoints: `/api/conversation/create`, `/api/conversation/join`, `/api/conversation/leave`, `/api/conversation/close`, `/api/conversation/info`
 - [x] Message API endpoints: `/api/message/send`, `/api/message/receive`
+- [x] Health check endpoint: `/health`
+- [x] WebSocket endpoint: `/ws/messages` for real-time message delivery
+- [x] Static file serving for frontend (serves React app from `src/ui/dist/` for Heroku deployment)
+- [x] CORS configuration with environment variable support (`FRONTEND_ORIGIN`)
+- [x] Encryption mode configuration via `ENCRYPTION_MODE` environment variable
+- [x] Encryption mode logging at startup
+
+## Phase 6.1: Heroku Deployment ✅
+
+**Status:** Completed
+
+### Deployment Infrastructure
+- [x] Procfile for Heroku backend deployment (uvicorn with --host 0.0.0.0 --port $PORT)
+- [x] .python-version file (Python 3.14.0) for Heroku Python buildpack
+- [x] Multi-buildpack support (Node.js for frontend build, Python for backend)
+- [x] Frontend build integration (heroku-postbuild script builds frontend during deployment)
+- [x] Backend static file serving (serves React app from `src/ui/dist/` for single-dyno deployment)
+- [x] CORS configuration for deployed frontend (`FRONTEND_ORIGIN` environment variable)
+- [x] WebSocket support (native Heroku WebSocket support, uses `wss://` for HTTPS)
+
+### Frontend Deployment Features
+- [x] Dynamic API base URL (uses `window.location.origin` when `VITE_API_BASE_URL` not set)
+- [x] WebSocket URL automatically uses `wss://` for HTTPS origins
+- [x] Device ID generation and persistence (unique per browser, stored in localStorage)
+- [x] Conversation auto-creation on first load (creates conversation if none exists)
+- [x] Conversation join flow UI component (view current ID, paste ID to join from another device)
+- [x] Conversation ID persistence in localStorage (maintains conversation across reloads)
+
+### Documentation
+- [x] Comprehensive deployment guide (DEPLOYMENT.md) with step-by-step instructions
+- [x] Environment variable reference
+- [x] Multi-device demo checklist (Chrome → Safari, Laptop → Mobile, etc.)
+- [x] Troubleshooting guide
+- [x] Quick deploy script
+
+### Multi-Device Demo Support
+- [x] Same origin deployment (frontend and backend on same URL, eliminates CORS issues)
+- [x] WebSocket support (real-time message delivery, no polling fallback needed)
+- [x] Device ID persistence (localStorage ensures each browser maintains identity)
+- [x] Dynamic conversations (auto-creation and join flow enable ad-hoc multi-device demos)
+- [x] Relative URLs (frontend uses `window.location.origin` - works on any domain)
+- [x] Encryption mode configurable (can demo both client and server modes via env var)
+- [x] Message API endpoints: `/api/message/send`, `/api/message/receive`
 - [x] Logging API endpoint: `/api/log/event`
 - [x] WebSocket endpoint: `/ws/messages` for real-time message delivery
 - [x] Health check endpoint: `/health`

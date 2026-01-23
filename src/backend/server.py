@@ -48,7 +48,8 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.backend.controller_api import ControllerAPIService
@@ -184,19 +185,26 @@ if ENCRYPTION_MODE == "server":
     key_bytes = hashlib.sha256(key_seed.encode()).digest()
     _server_encryption_key = base64.urlsafe_b64encode(key_bytes)
     _server_encryptor = Fernet(_server_encryption_key)
-    logger.info("Server-side encryption enabled (dev/POC mode)")
+    logger.info(f"Server-side encryption enabled (dev/POC mode) - ENCRYPTION_MODE={ENCRYPTION_MODE}")
 else:
     _server_encryptor = None
-    logger.info("Client-side encryption required (production mode)")
+    logger.info(f"Client-side encryption required (production mode) - ENCRYPTION_MODE={ENCRYPTION_MODE}")
 
+# CORS configuration
+# Allow frontend origin from environment variable (for Heroku deployment)
+# Or use development origins for local development
+frontend_origin = os.getenv("FRONTEND_ORIGIN")
 if is_development:
     # Permissive CORS for local development
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+    if frontend_origin:
+        allowed_origins.append(frontend_origin)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-        ],
+        allow_origins=allowed_origins,
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=[
@@ -208,10 +216,27 @@ if is_development:
         expose_headers=[],
         max_age=3600,
     )
-    logger.info("CORS enabled for local development (localhost:5173, 127.0.0.1:5173)")
+    logger.info(f"CORS enabled for local development: {allowed_origins}")
+elif frontend_origin:
+    # Production with frontend origin specified (Heroku deployment)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[frontend_origin],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            "X-Device-ID",
+            "X-Controller-Key",
+        ],
+        expose_headers=[],
+        max_age=3600,
+    )
+    logger.info(f"CORS enabled for production frontend: {frontend_origin}")
 else:
     # Production: Strict CORS (no middleware added - will reject cross-origin requests)
-    logger.info("CORS disabled - production mode (strict security)")
+    logger.info("CORS disabled - production mode (strict security, no FRONTEND_ORIGIN set)")
 
 # Global service instances (initialized in startup)
 # TODO: Replace with proper dependency injection container
@@ -1338,6 +1363,47 @@ async def health_check() -> Dict[str, str]:
         "service": "abiqua-backend",
         "version": "0.1.0",
     }
+
+
+# ============================================================================
+# Static File Serving (for Heroku deployment)
+# ============================================================================
+
+# Serve static files from frontend build directory (for Heroku deployment)
+# Only mount if directory exists (frontend must be built first)
+_frontend_dist_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "src", "ui", "dist")
+if os.path.exists(_frontend_dist_path) and os.path.isdir(_frontend_dist_path):
+    # Mount static files (JS, CSS, images, etc.)
+    app.mount("/assets", StaticFiles(directory=os.path.join(_frontend_dist_path, "assets")), name="assets")
+    
+    # Serve index.html for all non-API routes (SPA routing)
+    # This route must be defined LAST to avoid conflicts with API routes
+    # FastAPI matches routes in order, so more specific routes (like /health, /api/*) are matched first
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        """
+        Serve frontend SPA for all non-API routes.
+        
+        This allows the React app to handle client-side routing.
+        API routes are handled by FastAPI before this catch-all.
+        """
+        # Don't serve frontend for API routes, WebSocket routes, or health check
+        if (full_path.startswith("api/") or 
+            full_path.startswith("ws/") or 
+            full_path == "health" or
+            full_path.startswith("assets/")):
+            raise HTTPException(status_code=404, detail="Not found")
+        
+        # Serve index.html for all other routes (SPA routing)
+        index_path = os.path.join(_frontend_dist_path, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        else:
+            raise HTTPException(status_code=404, detail="Frontend not built")
+    
+    logger.info(f"Static file serving enabled from: {_frontend_dist_path}")
+else:
+    logger.info("Frontend dist directory not found - static file serving disabled (frontend must be built)")
 
 
 # ============================================================================

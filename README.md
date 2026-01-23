@@ -305,7 +305,43 @@ pytest tests/test_e2e_message_lifecycle.py::TestE2EMessageLifecycle::test_messag
 3. **REST Fallback**: Verifies REST polling receives messages when WebSocket unavailable, deduplication works
 4. **Message Ordering**: Verifies reverse chronological ordering (newest first) is maintained
 5. **Backend API Integration**: Verifies backend endpoint derives recipients from conversation, enqueues messages
->>>>>>> origin/main
+
+### Deployment to Heroku
+
+The application can be deployed to Heroku for live multi-device demos. See [DEPLOYMENT.md](DEPLOYMENT.md) for complete deployment instructions.
+
+**Quick Start:**
+```bash
+# Create Heroku app
+heroku create abiqua-asset-management
+
+# Set buildpacks (Node.js first, then Python)
+heroku buildpacks:add --index 1 heroku/nodejs
+heroku buildpacks:add --index 2 heroku/python
+
+# Set environment variables
+heroku config:set ENCRYPTION_MODE=client
+heroku config:set FRONTEND_ORIGIN=https://abiqua-asset-management.herokuapp.com
+heroku config:set ENVIRONMENT=production
+
+# Deploy
+git push heroku main
+```
+
+**Key Features:**
+- Single dyno deployment (backend serves frontend static files)
+- WebSocket support (native Heroku WebSocket support, no polling fallback needed)
+- Multi-device support (each browser generates unique device ID, stored in localStorage)
+- Dynamic conversation creation (auto-creates conversation on first load)
+- Join conversation flow (share conversation ID to join from multiple devices)
+- Encryption mode configurable via `ENCRYPTION_MODE` environment variable
+
+**Multi-Device Demo Flow:**
+1. First device opens app → generates unique device ID → auto-creates conversation → displays conversation ID
+2. Second device opens app → generates different device ID → user pastes conversation ID → joins conversation
+3. All devices share same conversation → messages delivered via WebSocket → real-time updates
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions, troubleshooting, and live demo checklist.
 
 ### Running the Application Locally
 

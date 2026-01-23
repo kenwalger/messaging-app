@@ -102,6 +102,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Device auto-provisioning in development mode (devices automatically registered, provisioned, and activated on WebSocket connection)
   - Production mode requires manual device provisioning via Controller API (strict security)
   - Code quality: Narrowed exception handling from broad Exception to specific ValueError (only exception type raised by device registry methods)
+- Heroku deployment support for multi-device live demos
+  - Procfile for Heroku backend deployment (uvicorn with --host 0.0.0.0 --port $PORT)
+  - .python-version file (Python 3.14.0) for Heroku Python buildpack
+  - Backend static file serving for frontend (serves React app from `src/ui/dist/`)
+  - CORS configuration supports `FRONTEND_ORIGIN` environment variable for deployed frontend
+  - Encryption mode logging at startup (logs active ENCRYPTION_MODE)
+  - Frontend uses `window.location.origin` for API base URL (works on any domain)
+  - WebSocket URL automatically uses `wss://` for HTTPS origins
+  - Device ID generation and persistence (unique per browser, stored in localStorage)
+  - Conversation auto-creation on first load (creates conversation if none exists)
+  - Conversation join flow UI component (view current ID, paste ID to join from another device)
+  - Conversation ID persistence in localStorage (maintains conversation across reloads)
+  - Frontend build integration (heroku-postbuild script builds frontend during Heroku deployment, runs after devDependencies are installed)
+  - Multi-buildpack support (Node.js for frontend build, Python for backend)
+  - .python-version file committed (removed from .gitignore for Heroku Python buildpack)
+  - Comprehensive deployment documentation (DEPLOYMENT.md) with step-by-step instructions
+  - Live demo checklist for multi-device testing (Chrome → Safari, Laptop → Mobile, etc.)
 
 ### Fixed
 - Message send endpoint security and validation fixes

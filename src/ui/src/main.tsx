@@ -21,13 +21,19 @@ import { DeviceApiService } from '../services/deviceApi'
 import { ConversationApiService } from '../services/conversationApi'
 import { MessageFetchApiService } from '../services/messageFetchApi'
 import { ConversationViewModel, DeviceStateViewModel, MessageViewModel } from '../types'
+import { getOrCreateDeviceId } from '../services/deviceId'
+import { getStoredConversationId, storeConversationId } from '../services/conversationManager'
 
-// Get API base URL from environment variable
-// Defaults to localhost backend if not set
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+// Get API base URL from environment variable or use same origin (for Heroku deployment)
+// For Heroku: frontend and backend are on same origin, so use window.location.origin
+// For local dev: use explicit localhost URL or env var
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 
+  (typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:8000')
 
 // Derive WebSocket URL from API base URL
-const wsUrl = apiBaseUrl.replace(/^http/, 'ws') + '/ws/messages'
+// Use wss:// for HTTPS origins, ws:// for HTTP
+const wsProtocol = apiBaseUrl.startsWith('https') ? 'wss' : 'ws'
+const wsUrl = apiBaseUrl.replace(/^https?/, wsProtocol) + '/ws/messages'
 
 // Create message transport (WebSocket preferred, REST polling fallback)
 const messageTransport = createMessageTransport({
@@ -44,9 +50,8 @@ const deviceApi = new DeviceApiService(apiBaseUrl)
 const conversationApi = new ConversationApiService(apiBaseUrl)
 const messageFetchApi = new MessageFetchApiService(apiBaseUrl)
 
-// Get device ID from mock data (in production, this would come from auth)
-// TODO: Replace with actual device ID from authentication
-const deviceId = mockActiveDeviceState.device_id
+// Get or create device ID (persisted in localStorage)
+const deviceId = getOrCreateDeviceId()
 
 /**
  * Root component that fetches data from backend and renders App.
@@ -58,6 +63,9 @@ function Root() {
     Record<string, MessageViewModel[]>
   >({})
   const [isLoading, setIsLoading] = useState(true)
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(
+    getStoredConversationId()
+  )
 
   useEffect(() => {
     /**
@@ -78,6 +86,34 @@ function Root() {
         // Fetch device state first (needed for message/conversation read-only flags)
         const fetchedDeviceState = await deviceApi.getDeviceState(deviceId)
         setDeviceState(fetchedDeviceState)
+
+        // Auto-create conversation if none exists and none is stored
+        let activeConversationId = currentConversationId
+        if (!activeConversationId) {
+          // Try to create a new conversation
+          const newConversation = await conversationApi.createConversation(deviceId, [deviceId])
+          if (newConversation) {
+            activeConversationId = newConversation.conversation_id
+            storeConversationId(activeConversationId)
+            setCurrentConversationId(activeConversationId)
+            if (import.meta.env.DEV) {
+              console.log(`[Conversation] Auto-created conversation: ${activeConversationId}`)
+            }
+          }
+        } else {
+          // Try to join existing conversation (in case device was not a participant)
+          const joined = await conversationApi.joinConversation(activeConversationId, deviceId)
+          if (!joined && import.meta.env.DEV) {
+            console.log(`[Conversation] Failed to join conversation ${activeConversationId}, will try to create new one`)
+            // If join failed, create a new conversation
+            const newConversation = await conversationApi.createConversation(deviceId, [deviceId])
+            if (newConversation) {
+              activeConversationId = newConversation.conversation_id
+              storeConversationId(activeConversationId)
+              setCurrentConversationId(activeConversationId)
+            }
+          }
+        }
 
         // Fetch all messages
         const allMessages = await messageFetchApi.fetchAllMessages(deviceId)
@@ -168,7 +204,8 @@ function Root() {
     }
 
     initialize()
-  }, [deviceId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceId]) // currentConversationId handled inside initialize
 
   // Show loading state or fallback to mock data
   if (isLoading) {
@@ -187,6 +224,26 @@ function Root() {
       ? messagesByConversation
       : mockMessages
 
+  const handleConversationJoined = async (conversationId: string) => {
+    // Join the conversation
+    const joined = await conversationApi.joinConversation(conversationId, deviceId)
+    if (joined) {
+      setCurrentConversationId(conversationId)
+      // Refresh conversations list
+      const convInfo = await conversationApi.getConversationInfo(conversationId, deviceId)
+      if (convInfo) {
+        setConversations((prev) => {
+          // Check if conversation already exists
+          const exists = prev.some((c) => c.conversation_id === conversationId)
+          if (exists) {
+            return prev
+          }
+          return [convInfo, ...prev]
+        })
+      }
+    }
+  }
+
   return (
     <App
       deviceState={finalDeviceState}
@@ -194,6 +251,8 @@ function Root() {
       messagesByConversation={finalMessages}
       messageApi={messageApi}
       messageTransport={messageTransport}
+      currentConversationId={currentConversationId}
+      onConversationJoined={handleConversationJoined}
     />
   )
 }
