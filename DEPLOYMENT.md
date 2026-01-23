@@ -69,7 +69,11 @@ heroku buildpacks:add --index 1 heroku/nodejs
 heroku buildpacks:add --index 2 heroku/python
 ```
 
-**Note**: The Node.js buildpack will automatically run `heroku-postbuild` script after installing dependencies (including devDependencies) but before pruning them. This ensures build tools (TypeScript, Vite) are available during the build phase.
+**Note**: 
+- The root-level `package.json` is required for Heroku Node.js buildpack detection
+- The root `package.json` delegates to `src/ui/package.json` for the actual build
+- The Node.js buildpack will automatically run `heroku-postbuild` script after installing dependencies (including devDependencies) but before pruning them
+- This ensures build tools (TypeScript, Vite) are available during the build phase
 
 ### 4. Deploy Backend
 
@@ -142,13 +146,20 @@ The backend automatically serves frontend static files if `src/ui/dist/` exists:
 - API routes (`/api/*`) and WebSocket (`/ws/*`) handled by FastAPI
 
 **Build Process**:
-- Frontend builds automatically via `heroku-postbuild` script in `package.json`
+- Frontend builds automatically via `heroku-postbuild` script
 - Node.js buildpack runs first:
-  - Installs all dependencies (including devDependencies)
-  - Runs `heroku-postbuild` script (builds frontend)
+  - Detects Node.js app via root-level `package.json`
+  - Root `package.json` delegates to `src/ui/package.json` for actual build
+  - Installs all dependencies in `src/ui/` (including devDependencies)
+  - Runs `heroku-postbuild` script (builds frontend in `src/ui/`)
   - Prunes devDependencies after build (production optimization)
 - Python buildpack runs second, starts backend server
 - Backend serves built frontend files from `src/ui/dist/`
+
+**Why root-level `package.json`**:
+- Heroku Node.js buildpack requires `package.json` at repository root for detection
+- Root `package.json` is minimal and delegates to `src/ui/package.json` for actual build
+- This allows Heroku to detect the Node.js app while keeping source structure intact
 
 **Why `heroku-postbuild` instead of `postinstall`**:
 - `heroku-postbuild` runs after all dependencies are installed (including devDependencies)

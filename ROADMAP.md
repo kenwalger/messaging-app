@@ -311,6 +311,7 @@ This roadmap outlines the planned development phases for AAM. All implementation
 
 ### Deployment Infrastructure
 - [x] Procfile for Heroku backend deployment (uvicorn with --host 0.0.0.0 --port $PORT)
+- [x] Root-level package.json for Heroku Node.js buildpack detection (delegates to src/ui/package.json)
 - [x] .python-version file (Python 3.14.0) for Heroku Python buildpack
 - [x] Multi-buildpack support (Node.js for frontend build, Python for backend)
 - [x] Frontend build integration (heroku-postbuild script builds frontend during deployment)

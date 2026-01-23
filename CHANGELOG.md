@@ -104,6 +104,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Code quality: Narrowed exception handling from broad Exception to specific ValueError (only exception type raised by device registry methods)
 - Heroku deployment support for multi-device live demos
   - Procfile for Heroku backend deployment (uvicorn with --host 0.0.0.0 --port $PORT)
+  - Root-level package.json for Heroku Node.js buildpack detection (delegates to src/ui/package.json)
   - .python-version file (Python 3.14.0) for Heroku Python buildpack
   - Backend static file serving for frontend (serves React app from `src/ui/dist/`)
   - CORS configuration supports `FRONTEND_ORIGIN` environment variable for deployed frontend
