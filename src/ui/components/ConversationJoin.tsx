@@ -32,6 +32,7 @@ export const ConversationJoin: React.FC<ConversationJoinProps> = ({
 }) => {
   const [joinId, setJoinId] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [copySuccess, setCopySuccess] = useState(false)
 
   const handleJoin = () => {
     const trimmedId = joinId.trim()
@@ -47,17 +48,37 @@ export const ConversationJoin: React.FC<ConversationJoinProps> = ({
     setError(null)
   }
 
-  const handleCopyId = () => {
-    if (currentConversationId) {
-      navigator.clipboard.writeText(currentConversationId).catch(() => {
+  const handleCopyId = async () => {
+    if (!currentConversationId) {
+      return
+    }
+
+    try {
+      // Try modern clipboard API first
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(currentConversationId)
+        setCopySuccess(true)
+        setTimeout(() => setCopySuccess(false), 2000)
+      } else {
         // Fallback for older browsers
         const textArea = document.createElement('textarea')
         textArea.value = currentConversationId
+        textArea.style.position = 'fixed'
+        textArea.style.opacity = '0'
         document.body.appendChild(textArea)
         textArea.select()
-        document.execCommand('copy')
+        const success = document.execCommand('copy')
         document.body.removeChild(textArea)
-      })
+        
+        if (success) {
+          setCopySuccess(true)
+          setTimeout(() => setCopySuccess(false), 2000)
+        } else {
+          setError('Failed to copy. Please select and copy manually.')
+        }
+      }
+    } catch (err) {
+      setError('Failed to copy. Please select and copy manually.')
     }
   }
 
@@ -78,9 +99,10 @@ export const ConversationJoin: React.FC<ConversationJoinProps> = ({
               />
               <button
                 onClick={handleCopyId}
-                className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
+                className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+                disabled={!currentConversationId}
               >
-                Copy
+                {copySuccess ? 'Copied!' : 'Copy'}
               </button>
             </div>
           </div>
@@ -110,6 +132,9 @@ export const ConversationJoin: React.FC<ConversationJoinProps> = ({
           </div>
           {error && (
             <p className="text-xs text-red-600 mt-1">{error}</p>
+          )}
+          {copySuccess && (
+            <p className="text-xs text-green-600 mt-1">Conversation ID copied to clipboard!</p>
           )}
         </div>
       </div>

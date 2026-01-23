@@ -342,6 +342,14 @@ This roadmap outlines the planned development phases for AAM. All implementation
 - [x] Improved error handling (demo mode warnings logged but non-fatal)
 - [x] Clear visual indication of demo mode status
 
+### UI Conversation Selection Fixes
+- [x] Fixed copy button in ConversationJoin component with visual feedback ("Copied!" message)
+- [x] Fixed conversation ID display to show currently selected conversation (not just joined conversation)
+- [x] Fixed conversation selection sync when joining conversations (automatically selects joined conversation)
+- [x] Enhanced error logging in httpMessageApi.ts for debugging message send failures
+- [x] Improved copy button error handling with fallback for older browsers
+- [x] Added useEffect to sync selectedConversationId with currentConversationId
+
 ### Documentation
 - [x] Demo mode documented in README.md with configuration instructions
 - [x] Demo mode behavior explained in DEPLOYMENT.md

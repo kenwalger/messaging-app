@@ -228,7 +228,10 @@ function Root() {
     // Join the conversation
     const joined = await conversationApi.joinConversation(conversationId, deviceId)
     if (joined) {
+      // Store conversation ID
+      storeConversationId(conversationId)
       setCurrentConversationId(conversationId)
+      
       // Refresh conversations list
       const convInfo = await conversationApi.getConversationInfo(conversationId, deviceId)
       if (convInfo) {
@@ -236,11 +239,17 @@ function Root() {
           // Check if conversation already exists
           const exists = prev.some((c) => c.conversation_id === conversationId)
           if (exists) {
-            return prev
+            // Update existing conversation
+            return prev.map((c) => 
+              c.conversation_id === conversationId ? convInfo : c
+            )
           }
           return [convInfo, ...prev]
         })
       }
+      
+      // Also update selected conversation in App component
+      // This will be handled by passing the conversationId to App and syncing it
     }
   }
 

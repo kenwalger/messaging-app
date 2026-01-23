@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Behavior explicitly gated behind DEMO_MODE flag (no production impact)
 
 ### Fixed
+- UI conversation selection and copy button fixes
+  - Fixed copy button in ConversationJoin component to show visual feedback ("Copied!" message)
+  - Fixed conversation ID display to show currently selected conversation (not just joined conversation)
+  - Fixed conversation selection sync: joining a conversation now automatically selects it in the UI
+  - Added useEffect to sync selectedConversationId with currentConversationId when conversations are joined
+  - Enhanced error logging in httpMessageApi.ts to show conversation_id, error_code, and request_id for debugging
+  - Improved copy button error handling with fallback for older browsers
+  - Fixes issue where messages were sent to wrong conversation after joining
 - Message send endpoint contract mismatch (conversation_id handling)
   - Added Pydantic `SendMessageRequest` model to explicitly require conversation_id in request body
   - Changed conversation_not_found error from 404 to 400 Bad Request (per requirements)

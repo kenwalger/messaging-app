@@ -89,8 +89,21 @@ export const App: React.FC<AppProps> = ({
   onConversationJoined,
 }) => {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
-    conversations.length > 0 ? conversations[0].conversation_id : null
+    conversations.length > 0 ? conversations[0].conversation_id : currentConversationId
   );
+  
+  // Sync selectedConversationId with currentConversationId when it changes (e.g., after joining)
+  useEffect(() => {
+    if (currentConversationId && currentConversationId !== selectedConversationId) {
+      // Check if the conversation exists in the conversations list
+      const conversationExists = conversations.some(
+        (c) => c.conversation_id === currentConversationId
+      )
+      if (conversationExists) {
+        setSelectedConversationId(currentConversationId)
+      }
+    }
+  }, [currentConversationId, conversations, selectedConversationId])
 
   const [messagesByConversation, setMessagesByConversation] = useState<
     Record<string, MessageViewModel[]>
@@ -252,6 +265,16 @@ export const App: React.FC<AppProps> = ({
       senderId: string,
       content: string
     ): Promise<MessageViewModel> => {
+      // Validate conversation ID is present
+      if (!conversationId) {
+        throw new Error('Conversation ID is required to send a message')
+      }
+      
+      // Log for debugging (development only)
+      if (import.meta.env.DEV) {
+        console.log(`[App] Sending message to conversation: ${conversationId}`)
+      }
+      
       // Send message via API
       const message = await messageApi.sendMessage(conversationId, senderId, content);
 
@@ -395,7 +418,7 @@ export const App: React.FC<AppProps> = ({
         {/* Conversation join flow for multi-device demos */}
         {onConversationJoined && (
           <ConversationJoin
-            currentConversationId={currentConversationId || null}
+            currentConversationId={selectedConversationId || currentConversationId || null}
             onConversationJoined={onConversationJoined}
           />
         )}
