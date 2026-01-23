@@ -176,8 +176,9 @@ if ENCRYPTION_MODE not in ("server", "client"):
 # Demo mode configuration
 # When enabled, allows HTTP-first messaging with lenient device validation
 # WebSockets become best-effort delivery, not authorization requirement
-# Default to TRUE on Heroku (detected by PORT env var), FALSE otherwise
-_demo_mode_default = "true" if os.getenv("PORT") else "false"
+# Default to TRUE on Heroku (detected by DYNO env var - Heroku-specific), FALSE otherwise
+# DYNO is set by Heroku and uniquely identifies Heroku platform (not set by Docker/Railway/Render)
+_demo_mode_default = "true" if os.getenv("DYNO") else "false"
 DEMO_MODE = os.getenv("DEMO_MODE", _demo_mode_default).lower() in ("true", "1", "yes", "on")
 if DEMO_MODE:
     logger.info("🧪 DEMO MODE ENABLED - WebSocket optional, encryption enforced, lenient device validation")
@@ -635,6 +636,9 @@ async def send_message(
                 device_registry.register_device(device_id, "demo-public-key", "demo-controller")
                 device_registry.provision_device(device_id)
                 device_registry.confirm_provisioning(device_id)
+                # Verify device was successfully registered before continuing
+                if not device_registry.get_device_identity(device_id):
+                    raise RuntimeError(f"Device {device_id} registration failed - device not found after registration")
                 logger.info(f"[DEMO MODE] Auto-registered device {device_id} for message send")
                 if logging_service:
                     logging_service.log_event(
@@ -646,7 +650,25 @@ async def send_message(
                         },
                     )
             except Exception as e:
-                logger.warning(f"[DEMO MODE] Failed to auto-register device {device_id}: {e}")
+                logger.error(f"[DEMO MODE] Failed to auto-register device {device_id}: {e}")
+                # In demo mode, continue even if auto-registration fails (device may have been registered by another request)
+                # But verify device exists before proceeding
+                if not device_registry.get_device_identity(device_id):
+                    reason_code = "device_registration_failed"
+                    if logging_service:
+                        logger.warning(
+                            f"Message send rejected: {reason_code}",
+                            extra={
+                                "request_id": request_id,
+                                "device_id": device_id,
+                                "reason_code": reason_code,
+                            },
+                        )
+                    return create_error_response(
+                        reason_code=reason_code,
+                        message="Device registration failed",
+                        request_id=request_id,
+                    )
         # In demo mode, skip strict active check - use activity TTL instead
         logger.debug(f"[DEMO MODE] Skipping device active check for {device_id} (activity TTL used)")
     # Development mode: Auto-provision devices for local development convenience
@@ -1292,9 +1314,18 @@ async def websocket_messages(
                 device_registry.register_device(device_id, "demo-public-key", "demo-controller")
                 device_registry.provision_device(device_id)
                 device_registry.confirm_provisioning(device_id)
+                # Verify device was successfully registered before continuing
+                if not device_registry.get_device_identity(device_id):
+                    raise RuntimeError(f"Device {device_id} registration failed - device not found after registration")
                 logger.info(f"[DEMO MODE] Auto-registered device {device_id} for WebSocket connection")
             except Exception as e:
                 logger.warning(f"[DEMO MODE] Failed to auto-register device {device_id}: {e}")
+                # In demo mode, continue even if auto-registration fails (device may have been registered by another request)
+                # But verify device exists before proceeding
+                if not device_registry.get_device_identity(device_id):
+                    logger.error(f"[DEMO MODE] Device {device_id} does not exist and auto-registration failed - closing WebSocket")
+                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                    return
         # In demo mode, always accept WebSocket - skip all active checks
         # Connect WebSocket immediately (no validation needed)
     # Development mode: Auto-provision devices for local development convenience
