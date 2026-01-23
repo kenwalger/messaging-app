@@ -216,6 +216,10 @@ class TestConversationStoreIntegration(unittest.TestCase):
         self.device_registry.provision_device("device-002")
         self.device_registry.confirm_provisioning("device-002")
         
+        self.device_registry.register_device("device-003", "key3", "controller")
+        self.device_registry.provision_device("device-003")
+        self.device_registry.confirm_provisioning("device-003")
+        
         # Create registry with in-memory store
         store = InMemoryConversationStore()
         from src.backend.conversation_registry import ConversationRegistry

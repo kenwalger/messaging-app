@@ -47,6 +47,7 @@ describe('Send Path End-to-End', () => {
     it('should trim content before sending', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
+        headers: new Headers(),
         json: async () => ({
           message_id: 'msg-001',
           timestamp: new Date().toISOString(),
@@ -68,6 +69,7 @@ describe('Send Path End-to-End', () => {
     it('should send correct headers', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
+        headers: new Headers(),
         json: async () => ({
           message_id: 'msg-001',
           timestamp: new Date().toISOString(),
@@ -90,6 +92,7 @@ describe('Send Path End-to-End', () => {
     it('should send correct request body', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
+        headers: new Headers(),
         json: async () => ({
           message_id: 'msg-001',
           timestamp: new Date().toISOString(),
@@ -102,9 +105,9 @@ describe('Send Path End-to-End', () => {
       const requestBody = JSON.parse(callArgs[1].body)
 
       expect(requestBody).toMatchObject({
-        recipients: [],
         conversation_id: 'conv-001',
         payload: 'test message',
+        encryption: 'server', // Set in beforeEach
       })
       expect(requestBody.expiration).toBeDefined()
     })
@@ -112,6 +115,7 @@ describe('Send Path End-to-End', () => {
     it('should not leak internal fields in request', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
+        headers: new Headers(),
         json: async () => ({
           message_id: 'msg-001',
           timestamp: new Date().toISOString(),
@@ -135,6 +139,7 @@ describe('Send Path End-to-End', () => {
     it('should return message in PENDING state immediately', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
+        headers: new Headers(),
         json: async () => ({
           message_id: 'msg-001',
           timestamp: new Date().toISOString(),
@@ -152,6 +157,7 @@ describe('Send Path End-to-End', () => {
       const serverMessageId = 'server-msg-001'
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
+        headers: new Headers(),
         json: async () => ({
           message_id: serverMessageId,
           timestamp: new Date().toISOString(),

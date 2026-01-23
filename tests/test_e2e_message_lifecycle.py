@@ -103,7 +103,7 @@ class TestE2EMessageLifecycle(unittest.TestCase):
         self.assertTrue(self.device_registry.is_device_active(self.recipient_id))
         
         # Create conversation registry
-        self.conversation_registry = ConversationRegistry(self.device_registry)
+        self.conversation_registry = ConversationRegistry(self.device_registry, demo_mode=True)
         
         # Create conversation
         self.conversation_id = "conv-001"

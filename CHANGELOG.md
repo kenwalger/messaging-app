@@ -20,6 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frontend banner warning when demo mode auto-creates conversations
 
 ### Fixed
+- Critical: Missing `import copy` in conversation_store.py (would cause NameError at runtime)
+- Thread-safety improvements in InMemoryConversationStore
+  - Added Lock initialization in `__init__()` for thread-safe concurrent access to in-memory store
+  - All methods (get, create, update, add_participant, remove_participant, delete, exists) now use locks
+  - Prevents data corruption in demo mode with concurrent users within a single process
+  - `get_conversation()` returns deep copy to prevent external modification of nested structures (participants list)
+  - `create_conversation()` and `update_conversation()` copy participant lists to prevent external modification
+  - Added conversation state validation in add_participant (consistent with Redis implementation)
+- Frontend polling optimization
+  - Reduced DemoModeBanner polling interval from 1 second to 2 seconds
+  - Reduces overhead while still catching same-tab localStorage updates promptly
 - Critical race condition fixes in Redis conversation store
   - Fixed race conditions in `add_participant()` and `remove_participant()` using WATCH/MULTI/EXEC transactions
   - Fixed race condition in `update_conversation()` TTL preservation using optimistic locking with retry logic

@@ -41,7 +41,7 @@ def device_registry() -> DeviceRegistry:
 @pytest.fixture
 def conversation_registry(device_registry: DeviceRegistry) -> ConversationRegistry:
     """Create conversation registry for testing."""
-    return ConversationRegistry(device_registry)
+    return ConversationRegistry(device_registry, demo_mode=True)
 
 
 @pytest.fixture
