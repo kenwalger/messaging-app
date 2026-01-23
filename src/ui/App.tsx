@@ -16,6 +16,7 @@ import { ConversationList } from "./components/ConversationList";
 import { MessageList } from "./components/MessageList";
 import { MessageComposer } from "./components/MessageComposer";
 import { StatusIndicator } from "./components/StatusIndicator";
+import { ConversationJoin } from "./components/ConversationJoin";
 import { ConversationViewModel, DeviceStateViewModel, MessageViewModel } from "./types";
 import { MessageApiService } from "./services/messageApi";
 import { MessageHandlerService } from "./services/messageHandler";
@@ -56,6 +57,16 @@ export interface AppProps {
    * Callback when messages are updated (for parent state management).
    */
   onMessagesUpdate?: (conversationId: string, messages: MessageViewModel[]) => void;
+  
+  /**
+   * Current conversation ID (for join flow).
+   */
+  currentConversationId?: string | null;
+  
+  /**
+   * Callback when conversation is joined.
+   */
+  onConversationJoined?: (conversationId: string) => void;
 }
 
 /**
@@ -370,6 +381,13 @@ export const App: React.FC<AppProps> = ({
             isReadOnly={deviceState.is_read_only}
           />
         </div>
+        {/* Conversation join flow for multi-device demos */}
+        {onConversationJoined && (
+          <ConversationJoin
+            currentConversationId={currentConversationId || null}
+            onConversationJoined={onConversationJoined}
+          />
+        )}
       </div>
 
       {/* Main: Message List and Composer */}

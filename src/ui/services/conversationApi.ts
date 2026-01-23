@@ -101,4 +101,92 @@ export class ConversationApiService {
       return null
     }
   }
+
+  /**
+   * Create a new conversation.
+   * 
+   * Calls POST /api/conversation/create endpoint per API Contracts (#10).
+   * 
+   * @param deviceId Device ID creating the conversation (X-Device-ID header)
+   * @param participants List of participant device IDs (optional, deviceId will be auto-included)
+   * @returns Promise resolving to ConversationViewModel or null if creation failed
+   */
+  async createConversation(
+    deviceId: string,
+    participants?: string[]
+  ): Promise<ConversationViewModel | null> {
+    try {
+      const response = await fetch(`${this.apiBaseUrl}/api/conversation/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-ID': deviceId,
+        },
+        body: JSON.stringify({
+          participants: participants || [deviceId],
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      if (data.status !== 'success') {
+        return null
+      }
+
+      // Map backend response to ConversationViewModel
+      return {
+        conversation_id: data.conversation_id,
+        state: 'active',
+        participant_count: data.participants?.length || 1,
+        can_send: true,
+        is_read_only: false,
+        send_disabled: false,
+        last_message_at: null,
+        created_at: new Date().toISOString(),
+        display_name: `Conversation (${data.participants?.length || 1} participants)`,
+      }
+    } catch (error) {
+      // Errors handled silently - will be logged in development
+      if (import.meta.env.DEV) {
+        console.error('Failed to create conversation:', error)
+      }
+      return null
+    }
+  }
+
+  /**
+   * Join an existing conversation.
+   * 
+   * Calls POST /api/conversation/join endpoint per API Contracts (#10).
+   * 
+   * @param conversationId Conversation ID to join
+   * @param deviceId Device ID joining the conversation (X-Device-ID header)
+   * @returns Promise resolving to true if joined successfully, false otherwise
+   */
+  async joinConversation(
+    conversationId: string,
+    deviceId: string
+  ): Promise<boolean> {
+    try {
+      // Backend expects conversation_id as query parameter or form data
+      const url = new URL(`${this.apiBaseUrl}/api/conversation/join`)
+      url.searchParams.set('conversation_id', conversationId)
+
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'X-Device-ID': deviceId,
+        },
+      })
+
+      return response.ok
+    } catch (error) {
+      // Errors handled silently
+      return false
+    }
+  }
 }
