@@ -348,6 +348,8 @@ git push heroku main
 Demo mode (`DEMO_MODE=true`) enables reliable multi-device demos on Heroku by:
 - Allowing HTTP-first messaging without WebSocket dependency
 - Auto-registering devices on first request
+- Auto-creating conversations when sending to non-existent conversation ID
+- Auto-adding devices as participants when sending to existing conversation (prevents 403 errors)
 - Using device activity TTL (5 minutes) instead of strict active state checks
 - Making WebSocket delivery best-effort (messages always queued for REST polling)
 - Not blocking message sends based on WebSocket connection status

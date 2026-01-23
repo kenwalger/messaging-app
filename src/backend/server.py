@@ -1062,21 +1062,36 @@ async def send_message(
     
     # Authorization check: Verify sender is a participant in the conversation
     if device_id not in participants:
-        reason_code = "sender_not_participant"
-        if logging_service:
-            logger.warning(
-                f"Message send rejected: {reason_code}",
-                extra={
-                    "request_id": request_id,
-                    "device_id": device_id,
-                    "conversation_id": conversation_id,
-                    "reason_code": reason_code,
-                },
+        # In demo mode: Auto-add device as participant if conversation exists
+        if DEMO_MODE and conversation_exists:
+            logger.warning(f"[DEMO MODE] Auto-adding device {device_id} as participant to conversation {conversation_id}")
+            add_success = conversation_registry.add_participant(conversation_id, device_id)
+            if add_success:
+                # Re-fetch participants after adding
+                participants = conversation_registry.get_conversation_participants(conversation_id)
+                logger.info(f"[DEMO MODE] Successfully added device {device_id} to conversation {conversation_id}")
+            else:
+                logger.warning(f"[DEMO MODE] Failed to add device {device_id} to conversation {conversation_id} (may have been added by another request)")
+                # Re-fetch participants in case it was added by another request
+                participants = conversation_registry.get_conversation_participants(conversation_id)
+        
+        # Check again after potential auto-add
+        if device_id not in participants:
+            reason_code = "sender_not_participant"
+            if logging_service:
+                logger.warning(
+                    f"Message send rejected: {reason_code}",
+                    extra={
+                        "request_id": request_id,
+                        "device_id": device_id,
+                        "conversation_id": conversation_id,
+                        "reason_code": reason_code,
+                    },
+                )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid request: sender is not a participant in this conversation",
             )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid request: sender is not a participant in this conversation",
-        )
     
     # Exclude sender from recipients (they shouldn't receive their own message)
     recipients = [p for p in participants if p != device_id]
