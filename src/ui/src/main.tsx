@@ -96,7 +96,6 @@ function Root() {
         }
         
         // Ensure conversation exists before proceeding (idempotent creation)
-        // Note: encryptionMode is optional in ensureConversation, so we don't need to import it here
         const ensuredConversation = await conversationApi.ensureConversation(
           activeConversationId,
           deviceId,

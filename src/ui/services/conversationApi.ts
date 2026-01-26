@@ -199,14 +199,12 @@ export class ConversationApiService {
    * @param conversationId Conversation ID to ensure exists
    * @param deviceId Device ID (X-Device-ID header)
    * @param participants List of participant device IDs (defaults to [deviceId])
-   * @param encryptionMode Encryption mode for the conversation (optional)
    * @returns Promise resolving to ConversationViewModel if successful, null if failed
    */
   async ensureConversation(
     conversationId: string,
     deviceId: string,
-    participants?: string[],
-    encryptionMode?: string
+    participants?: string[]
   ): Promise<ConversationViewModel | null> {
     try {
       const response = await fetch(`${this.apiBaseUrl}/api/conversation/create`, {
