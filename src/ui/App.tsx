@@ -297,12 +297,10 @@ export const App: React.FC<AppProps> = ({
       }
       
       // Ensure conversation exists before sending (idempotent: create or retrieve)
-      const encryptionMode = encryptionModeStore.getMode()
       const ensuredConversation = await conversationApi.ensureConversation(
         conversationId,
         deviceId,
-        [deviceId],
-        encryptionMode
+        [deviceId]
       )
       
       if (!ensuredConversation) {

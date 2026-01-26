@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frontend banner warning when demo mode auto-creates conversations
 
 ### Fixed
+- Removed unused `encryptionMode` parameter from `ConversationApi.ensureConversation()` method
+  - Parameter was defined but never used, causing TypeScript build errors on Heroku
+  - Removed from method signature, JSDoc, and all call sites
+  - Build now passes successfully
 - Critical: Missing `import copy` in conversation_store.py (would cause NameError at runtime)
 - Deprecation warnings: Replaced all `datetime.utcnow()` calls with `datetime.now(UTC)` (8 instances)
   - Updated imports to include `UTC` from datetime module
