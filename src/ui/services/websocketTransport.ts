@@ -134,6 +134,7 @@ export class WebSocketTransport implements MessageTransport {
       const parsed = JSON.parse(data);
 
       // Check if this is an ACK message (for sent messages)
+      // Also check for normalized message type
       if (parsed.type === "ack" && parsed.message_id) {
         // This is an ACK for a message we sent
         // Forward to message handler via callback
@@ -160,12 +161,23 @@ export class WebSocketTransport implements MessageTransport {
       }
 
       // Regular incoming message (not an ACK)
+      // Handle normalized event type: type: "message" with sender_device_id
+      // Also support backward compatibility with sender_id and messages without type field
+      // Accept messages with type: "message" or no type field (backward compatibility)
+      if (parsed.type && parsed.type !== "message" && parsed.type !== "ack") {
+        // Unknown message type - silently ignore
+        return;
+      }
+      
       const wsMessage: WebSocketMessage = parsed;
+      
+      // Use normalized sender_device_id if present, fallback to sender_id for backward compatibility
+      const senderId = wsMessage.sender_device_id || wsMessage.sender_id;
 
       // Normalize to MessageViewModel
       const message: MessageViewModel = {
         message_id: wsMessage.id,
-        sender_id: wsMessage.sender_id,
+        sender_id: senderId,
         conversation_id: wsMessage.conversation_id,
         state: "delivered", // Incoming messages are already delivered
         created_at: wsMessage.timestamp,

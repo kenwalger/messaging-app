@@ -353,6 +353,7 @@ Demo mode (`DEMO_MODE=true`) enables reliable multi-device demos on Heroku by:
 - Using device activity TTL (5 minutes) instead of strict active state checks
 - Making WebSocket delivery best-effort (messages always queued for REST polling)
 - Not blocking message sends based on WebSocket connection status
+- **Message echo to sender**: Sender receives their own messages via WebSocket for instant UI feedback
 - Preserving encryption requirements (client or server mode enforced)
 
 **Multi-Device Demo Flow:**

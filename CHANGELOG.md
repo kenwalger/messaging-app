@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Message echo to sender in demo mode
+  - Sender receives their own messages via WebSocket for instant UI feedback
+  - Backend includes sender as recipient in demo mode
+  - Frontend accepts and renders self-sent messages (no filtering)
+- Normalized WebSocket message event schema
+  - All messages now include `type: "message"` field
+  - Added `sender_device_id` field (normalized) alongside `sender_id` (backward compatibility)
+  - Frontend handles both normalized and legacy message formats
 - Idempotent conversation creation with `ensureConversation()` method
   - POST `/api/conversation/create` now accepts optional `conversation_id` parameter
   - If conversation exists, returns existing conversation instead of error (idempotent behavior)
@@ -32,6 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frontend banner warning when demo mode auto-creates conversations
 
 ### Fixed
+- Message delivery issues in demo mode
+  - Messages now echo to sender via WebSocket for instant UI feedback
+  - Backend no longer rejects sender-only conversations in demo mode
+  - Optimistic UI updates work correctly on 202 Accepted responses
+  - WebSocket handlers accept and render self-sent messages (no filtering)
+  - Event type normalization: all messages include `type: "message"` field
+  - Downgraded noisy log warnings for valid demo flows (warning → debug)
 - Removed unused `encryptionMode` parameter from `ConversationApi.ensureConversation()` method
   - Parameter was defined but never used, causing TypeScript build errors on Heroku
   - Removed from method signature, JSDoc, and all call sites

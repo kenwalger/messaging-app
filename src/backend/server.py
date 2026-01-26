@@ -176,9 +176,11 @@ if ENCRYPTION_MODE not in ("server", "client"):
 # Demo mode configuration
 # When enabled, allows HTTP-first messaging with lenient device validation
 # WebSockets become best-effort delivery, not authorization requirement
-# Default to TRUE on Heroku (detected by DYNO env var - Heroku-specific), FALSE otherwise
+# Default to TRUE on Heroku (detected by DYNO env var - Heroku-specific)
+# Default to TRUE for local development (when REDIS_URL not set) for easier local testing
 # DYNO is set by Heroku and uniquely identifies Heroku platform (not set by Docker/Railway/Render)
-_demo_mode_default = "true" if os.getenv("DYNO") else "false"
+_has_redis = bool(os.getenv("REDIS_URL"))
+_demo_mode_default = "true" if (os.getenv("DYNO") or not _has_redis) else "false"
 DEMO_MODE = os.getenv("DEMO_MODE", _demo_mode_default).lower() in ("true", "1", "yes", "on")
 if DEMO_MODE:
     logger.info("🧪 DEMO MODE ENABLED - WebSocket optional, encryption enforced, lenient device validation")
@@ -1102,27 +1104,37 @@ async def send_message(
                 detail="Invalid request: sender is not a participant in this conversation",
             )
     
-    # Exclude sender from recipients (they shouldn't receive their own message)
-    recipients = [p for p in participants if p != device_id]
+    # In demo mode, always include sender as recipient (for message echo)
+    # In non-demo mode, exclude sender from recipients (they shouldn't receive their own message)
+    if DEMO_MODE:
+        recipients = participants  # Include sender in demo mode for echo
+    else:
+        recipients = [p for p in participants if p != device_id]
     
     # Validation check 8: no_recipients_available
+    # In demo mode, allow sender-only conversations (sender will receive echo)
     if not recipients:
-        reason_code = "no_recipients_available"
-        if logging_service:
-            logger.warning(
-                f"Message send rejected: {reason_code}",
-                extra={
-                    "request_id": request_id,
-                    "device_id": device_id,
-                    "conversation_id": conversation_id,
-                    "reason_code": reason_code,
-                },
+        if DEMO_MODE:
+            # In demo mode, allow sender-only conversations (sender will see their own message)
+            recipients = [device_id]  # Include sender as recipient for echo
+            logger.debug(f"[DEMO MODE] Sender-only conversation, including sender as recipient for echo")
+        else:
+            reason_code = "no_recipients_available"
+            if logging_service:
+                logger.warning(
+                    f"Message send rejected: {reason_code}",
+                    extra={
+                        "request_id": request_id,
+                        "device_id": device_id,
+                        "conversation_id": conversation_id,
+                        "reason_code": reason_code,
+                    },
+                )
+            return create_error_response(
+                reason_code=reason_code,
+                message="Invalid request: no recipients available (conversation has only sender)",
+                request_id=request_id,
             )
-        return create_error_response(
-            reason_code=reason_code,
-            message="Invalid request: no recipients available (conversation has only sender)",
-            request_id=request_id,
-        )
     
     # Parse expiration timestamp (use provided or derive from server timestamp + default expiration)
     if expiration:
@@ -1203,7 +1215,7 @@ async def send_message(
         # In demo mode, always return success (message queued for REST polling)
         # WebSocket delivery failures don't block message acceptance
         if DEMO_MODE:
-            logger.warning(f"[DEMO MODE] Message relay returned False for {message_id}, but accepting message (queued for REST polling)")
+            logger.debug(f"[DEMO MODE] Message relay returned False for {message_id}, but accepting message (queued for REST polling)")
             # Continue to return 202 Accepted - message is stored and available via REST
         else:
             # Log delivery failure (metadata only)

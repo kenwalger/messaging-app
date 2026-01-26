@@ -190,8 +190,9 @@ class MessageRelayService:
             if demo_mode:
                 # In demo mode, allow message relay even if recipients not strictly active
                 # WebSocket delivery becomes best-effort, message still queued for REST polling
-                logger.debug(f"[DEMO MODE] No strictly active recipients for message {message_id}, but allowing relay (best-effort delivery)")
-                valid_recipients = recipients  # Use all recipients, delivery will be best-effort
+                # Always include sender as recipient in demo mode for message echo
+                valid_recipients = recipients if recipients else [sender_id]  # Use all recipients or sender, delivery will be best-effort
+                logger.debug(f"[DEMO MODE] No strictly active recipients for message {message_id}, but allowing relay (best-effort delivery, sender included for echo)")
             else:
                 logger.warning(f"No valid recipients for message {message_id}")
                 return False
@@ -210,9 +211,15 @@ class MessageRelayService:
         
         self._pending_deliveries[message_id] = delivery_metadata
         
-        # Attempt delivery to all valid recipients
+        # Attempt delivery to all valid recipients (including sender in demo mode for echo)
         # In demo mode, WebSocket delivery is best-effort - message is always queued for REST polling
         demo_mode = getattr(self.device_registry, '_demo_mode', False)
+        
+        # In demo mode, ensure sender is included in recipients for message echo
+        if demo_mode and sender_id not in valid_recipients:
+            valid_recipients.append(sender_id)
+            logger.debug(f"[DEMO MODE] Added sender {sender_id} to recipients for message echo")
+        
         delivery_success = False
         for recipient_id in valid_recipients:
             if self._deliver_to_recipient(recipient_id, delivery_metadata):
@@ -280,13 +287,16 @@ class MessageRelayService:
         if not self.websocket_manager:
             return False
         
-        # Prepare WebSocket message per Resolved Clarifications
+        # Prepare WebSocket message with normalized event type
+        # Event schema: type, conversation_id, sender_device_id, payload, timestamp
         ws_message = {
+            "type": "message",  # Normalized event type
             "id": str(delivery_metadata["message_id"]),
             "conversation_id": delivery_metadata["conversation_id"],
+            "sender_device_id": delivery_metadata["sender_id"],  # Normalized field name
             "payload": delivery_metadata["encrypted_payload"].hex(),  # Hex-encoded
             "timestamp": delivery_metadata["created_at"].isoformat(),
-            "sender_id": delivery_metadata["sender_id"],
+            "sender_id": delivery_metadata["sender_id"],  # Keep for backward compatibility
             "expiration": delivery_metadata["expiration_timestamp"].isoformat(),
         }
         
