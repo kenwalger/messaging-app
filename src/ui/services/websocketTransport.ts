@@ -171,8 +171,24 @@ export class WebSocketTransport implements MessageTransport {
       
       const wsMessage: WebSocketMessage = parsed;
       
+      // Validate required fields
+      if (!wsMessage.id || !wsMessage.conversation_id || !wsMessage.timestamp) {
+        // Missing required fields - silently ignore per deterministic rules
+        return;
+      }
+      
       // Use normalized sender_device_id if present, fallback to sender_id for backward compatibility
+      // Validate that sender ID exists (required field)
       const senderId = wsMessage.sender_device_id || wsMessage.sender_id;
+      if (!senderId) {
+        // Missing sender ID - silently ignore per deterministic rules
+        return;
+      }
+
+      // Handle optional expiration field with fallback (default: 7 days from timestamp)
+      const timestamp = new Date(wsMessage.timestamp);
+      const defaultExpiration = new Date(timestamp.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      const expiresAt = wsMessage.expiration ? new Date(wsMessage.expiration) : defaultExpiration;
 
       // Normalize to MessageViewModel
       const message: MessageViewModel = {
@@ -181,7 +197,7 @@ export class WebSocketTransport implements MessageTransport {
         conversation_id: wsMessage.conversation_id,
         state: "delivered", // Incoming messages are already delivered
         created_at: wsMessage.timestamp,
-        expires_at: wsMessage.expiration,
+        expires_at: expiresAt.toISOString(),
         is_expired: false, // Will be checked by UI adapter
         is_failed: false,
         is_read_only: false, // Will be set by UI adapter based on device state

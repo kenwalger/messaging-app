@@ -534,6 +534,30 @@ In development mode, devices are automatically provisioned when they connect via
 - No stack traces or backend details are exposed to users
 - Network errors are handled silently with automatic retries
 
+#### WebSocket Message Field Handling
+
+The WebSocket transport includes robust field validation and fallback handling to prevent runtime errors:
+
+**Required Field Validation:**
+- `id` (message ID): Must be present, otherwise message is silently ignored
+- `conversation_id`: Must be present, otherwise message is silently ignored
+- `timestamp`: Must be present, otherwise message is silently ignored
+
+**Optional Field Handling:**
+- `sender_device_id` / `sender_id`: At least one must be present (normalized `sender_device_id` preferred, `sender_id` for backward compatibility)
+- `expiration`: If missing, defaults to 7 days from message timestamp
+- `type`: Optional event type field (accepts `"message"` or `"ack"`, unknown types ignored)
+
+**Backward Compatibility:**
+- Supports both normalized (`sender_device_id`) and legacy (`sender_id`) field names
+- Accepts messages with or without `type` field
+- Unknown message types are silently ignored per deterministic rules
+
+**Error Handling:**
+- Missing required fields: Message is silently ignored (no error thrown)
+- Missing sender ID: Message is silently ignored (no error thrown)
+- Invalid field types: Handled gracefully with type coercion where possible
+
 #### WebSocket Resilience
 
 The frontend implements automatic resilience for WebSocket connections:

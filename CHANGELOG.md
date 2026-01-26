@@ -47,6 +47,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - WebSocket handlers accept and render self-sent messages (no filtering)
   - Event type normalization: all messages include `type: "message"` field
   - Downgraded noisy log warnings for valid demo flows (warning → debug)
+- WebSocket message field handling
+  - Added validation for required fields (`id`, `conversation_id`, `timestamp`) before processing
+  - Added sender ID validation (requires `sender_device_id` or `sender_id` field)
+  - Added expiration field fallback (defaults to 7 days from timestamp if missing)
+  - Prevents runtime errors from undefined field access
+  - Maintains backward compatibility with legacy message formats
+- Test suite fixes for demo mode behavior
+  - Fixed `test_send_message_device_not_active` to disable demo mode for strict validation
+  - Fixed `test_send_message_conversation_not_found` to prevent auto-creation in tests
+  - Fixed `test_send_message_sender_not_participant` to prevent auto-adding participants
+  - Fixed `test_send_message_conversation_not_found_returns_structured_error` to test strict validation
+  - All tests now properly patch `DEMO_MODE` to `False` when testing strict validation behavior
 - Removed unused `encryptionMode` parameter from `ConversationApi.ensureConversation()` method
   - Parameter was defined but never used, causing TypeScript build errors on Heroku
   - Removed from method signature, JSDoc, and all call sites
