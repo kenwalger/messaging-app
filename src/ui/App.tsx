@@ -24,6 +24,7 @@ import { MessageHandlerService } from "./services/messageHandler";
 import { MessageTransport, ConnectionStatus } from "./services/messageTransport";
 import { EncryptionMode, encryptionModeStore } from "./services/encryptionMode";
 import { isEncryptionAvailable } from "./services/clientEncryption";
+import { ConversationApiService } from "./services/conversationApi";
 
 export interface AppProps {
   /**
@@ -68,6 +69,16 @@ export interface AppProps {
    * Callback when conversation is joined.
    */
   onConversationJoined?: (conversationId: string) => void;
+  
+  /**
+   * Conversation API service for ensuring conversations exist.
+   */
+  conversationApi: ConversationApiService;
+  
+  /**
+   * Device ID for conversation operations.
+   */
+  deviceId: string;
 }
 
 /**
@@ -87,6 +98,8 @@ export const App: React.FC<AppProps> = ({
   onMessagesUpdate,
   currentConversationId = null,
   onConversationJoined,
+  conversationApi,
+  deviceId,
 }) => {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
     conversations.length > 0 ? conversations[0].conversation_id : currentConversationId
@@ -117,6 +130,12 @@ export const App: React.FC<AppProps> = ({
   // Connection status for developer-facing indicator
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [isPollingFallback, setIsPollingFallback] = useState(false);
+  
+  // Conversation error state (blocks message sending if conversation cannot be ensured)
+  const [conversationError, setConversationError] = useState<{
+    conversationId: string;
+    message: string;
+  } | null>(null);
   
   // Demo mode detection (from environment variable or window location)
   // Demo mode allows HTTP-first messaging without WebSocket dependency
@@ -277,6 +296,29 @@ export const App: React.FC<AppProps> = ({
         throw new Error(error)
       }
       
+      // Ensure conversation exists before sending (idempotent: create or retrieve)
+      const encryptionMode = encryptionModeStore.getMode()
+      const ensuredConversation = await conversationApi.ensureConversation(
+        conversationId,
+        deviceId,
+        [deviceId],
+        encryptionMode
+      )
+      
+      if (!ensuredConversation) {
+        // Conversation ensure failed - set error state and block message send
+        const errorMessage = `Failed to ensure conversation exists: ${conversationId}`
+        setConversationError({
+          conversationId,
+          message: errorMessage,
+        })
+        console.error('[App]', errorMessage)
+        throw new Error(errorMessage)
+      }
+      
+      // Clear any previous conversation error
+      setConversationError(null)
+      
       // Log for debugging (always log for troubleshooting)
       console.log(`[App] Sending message to conversation: ${conversationId}`, {
         selectedConversationId,
@@ -344,7 +386,7 @@ export const App: React.FC<AppProps> = ({
 
       return message;
     },
-    [messageApi, onMessagesUpdate]
+    [messageApi, onMessagesUpdate, conversationApi, deviceId]
   );
 
 
@@ -354,6 +396,20 @@ export const App: React.FC<AppProps> = ({
       <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
         {/* Demo mode banner */}
         <DemoModeBanner enabled={isDemoMode} />
+        {/* Conversation error banner (blocking) */}
+        {conversationError && (
+          <div className="bg-red-50 border-b border-red-200 px-4 py-3">
+            <div className="flex items-start gap-2">
+              <span className="text-red-600 font-medium text-sm">⚠️ Conversation Error</span>
+            </div>
+            <div className="mt-1 text-xs text-red-700">
+              {conversationError.message}
+            </div>
+            <div className="mt-1 text-xs text-red-600 font-mono">
+              Conversation ID: {conversationError.conversationId}
+            </div>
+          </div>
+        )}
         <StatusIndicator
           status={deviceState.display_status}
           isReadOnly={deviceState.is_read_only}
@@ -449,6 +505,7 @@ export const App: React.FC<AppProps> = ({
               conversationId={selectedConversationId}
               senderId={deviceState.device_id}
               sendDisabled={
+                !!conversationError || // Block sending if conversation error exists
                 deviceState.is_read_only ||
                 !deviceState.can_send ||
                 selectedConversation.send_disabled ||

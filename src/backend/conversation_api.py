@@ -147,15 +147,44 @@ class ConversationService:
         
         # Defensive error handling: Check if conversation already exists with this ID
         if self.conversation_registry.conversation_exists(conversation_id):
-            # Conversation with this ID already exists - return it
+            # Conversation with this ID already exists - return it (idempotent behavior)
             existing_participants = self.conversation_registry.get_conversation_participants(conversation_id)
             if self.conversation_registry.is_conversation_active(conversation_id):
-                logger.info(f"Conversation {conversation_id} already exists, returning existing conversation")
+                # Validate and merge participants: ensure calling device is a participant
+                # This handles multi-device scenarios where different devices call ensureConversation
+                merged_participants = set(existing_participants)
+                participants_added = False
+                
+                # Ensure calling device is in participants
+                if device_id not in merged_participants:
+                    logger.info(f"Device {device_id} not in existing participants for {conversation_id}, adding")
+                    success = self.conversation_registry.add_participant(conversation_id, device_id)
+                    if success:
+                        merged_participants.add(device_id)
+                        participants_added = True
+                    else:
+                        logger.warning(f"Failed to add device {device_id} to existing conversation {conversation_id}")
+                
+                # Add any other participants from request that aren't already in conversation
+                for participant in participants:
+                    if participant not in merged_participants:
+                        logger.info(f"Adding participant {participant} to existing conversation {conversation_id}")
+                        success = self.conversation_registry.add_participant(conversation_id, participant)
+                        if success:
+                            merged_participants.add(participant)
+                            participants_added = True
+                
+                # Re-fetch participants if any were added (to get latest state)
+                if participants_added:
+                    merged_participants = self.conversation_registry.get_conversation_participants(conversation_id)
+                
+                logger.info(f"Conversation {conversation_id} already exists, reusing existing conversation (idempotent, participants: {len(merged_participants)})")
                 return {
                     "status": "success",
                     "conversation_id": conversation_id,
-                    "participants": list(existing_participants),
+                    "participants": list(merged_participants),
                     "status_code": 200,
+                    "created": False,  # Indicates conversation was reused, not created
                 }
             else:
                 # Conversation exists but is closed - return error
@@ -194,13 +223,15 @@ class ConversationService:
                 },
             )
         
-        logger.info(f"Conversation {conversation_id} created by device {device_id}")
+        logger.info(f"Conversation {conversation_id} created successfully (idempotent: new)")
         
         return {
             "status": "success",
             "conversation_id": conversation_id,
             "participants": participants,
             "state": ConversationState.ACTIVE.value,
+            "status_code": 200,
+            "created": True,  # Indicates conversation was newly created
         }
     
     def join_conversation(

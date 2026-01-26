@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Idempotent conversation creation with `ensureConversation()` method
+  - POST `/api/conversation/create` now accepts optional `conversation_id` parameter
+  - If conversation exists, returns existing conversation instead of error (idempotent behavior)
+  - Backend logs whether conversation was "created" or "reused" for transparency
+  - API response includes `created` boolean field for frontend logging
+  - Participant validation/merging when conversation exists:
+    - Ensures calling device is a participant (auto-adds if missing)
+    - Adds any other participants from request that aren't already in conversation
+    - Handles multi-device scenarios where different devices call ensureConversation with different participant lists
+  - Frontend `ConversationApi.ensureConversation()` method guarantees conversation exists before message send
+  - Blocking error banner displayed when conversation ensure fails
+  - Message composer disabled when conversation error exists
 - Redis-backed conversation registry for Heroku multi-dyno deployments
   - ConversationStore abstraction with Redis and InMemory implementations
   - Redis-backed storage using Heroku Redis addon (REDIS_URL)
