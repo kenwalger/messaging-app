@@ -346,6 +346,7 @@ git push heroku main
 
 **Demo Mode:**
 Demo mode (`DEMO_MODE=true`) enables reliable multi-device demos on Heroku by:
+- Defaulting to enabled when `REDIS_URL` is not set (local development)
 - Allowing HTTP-first messaging without WebSocket dependency
 - Auto-registering devices on first request
 - Auto-creating conversations when sending to non-existent conversation ID

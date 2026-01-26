@@ -47,6 +47,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - WebSocket handlers accept and render self-sent messages (no filtering)
   - Event type normalization: all messages include `type: "message"` field
   - Downgraded noisy log warnings for valid demo flows (warning → debug)
+- Critical: Fixed duplicate sender addition bug in message relay
+  - Fixed logic where sender_id could be added twice to valid_recipients list
+  - Sender echo logic now happens once, before storing delivery metadata
+  - Prevents duplicate message delivery attempts in demo mode scenarios
+  - Ensures sender is included exactly once in recipient list for message echo
 - WebSocket message field handling
   - Added validation for required fields (`id`, `conversation_id`, `timestamp`) before processing
   - Added sender ID validation (requires `sender_device_id` or `sender_id` field)

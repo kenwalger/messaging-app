@@ -190,12 +190,18 @@ class MessageRelayService:
             if demo_mode:
                 # In demo mode, allow message relay even if recipients not strictly active
                 # WebSocket delivery becomes best-effort, message still queued for REST polling
-                # Always include sender as recipient in demo mode for message echo
-                valid_recipients = recipients if recipients else [sender_id]  # Use all recipients or sender, delivery will be best-effort
-                logger.debug(f"[DEMO MODE] No strictly active recipients for message {message_id}, but allowing relay (best-effort delivery, sender included for echo)")
+                # Use all recipients (even if not strictly active) for best-effort delivery
+                valid_recipients = list(recipients) if recipients else []
+                logger.debug(f"[DEMO MODE] No strictly active recipients for message {message_id}, but allowing relay (best-effort delivery)")
             else:
                 logger.warning(f"No valid recipients for message {message_id}")
                 return False
+        
+        # In demo mode, ensure sender is included in recipients for message echo
+        # This must happen BEFORE storing metadata to avoid duplicate additions
+        if demo_mode and sender_id not in valid_recipients:
+            valid_recipients.append(sender_id)
+            logger.debug(f"[DEMO MODE] Added sender {sender_id} to recipients for message echo")
         
         # Store delivery metadata temporarily per Functional Spec (#6), Section 5.1
         # Classification: Restricted per Data Classification (#8), Section 3
@@ -213,12 +219,6 @@ class MessageRelayService:
         
         # Attempt delivery to all valid recipients (including sender in demo mode for echo)
         # In demo mode, WebSocket delivery is best-effort - message is always queued for REST polling
-        demo_mode = getattr(self.device_registry, '_demo_mode', False)
-        
-        # In demo mode, ensure sender is included in recipients for message echo
-        if demo_mode and sender_id not in valid_recipients:
-            valid_recipients.append(sender_id)
-            logger.debug(f"[DEMO MODE] Added sender {sender_id} to recipients for message echo")
         
         delivery_success = False
         for recipient_id in valid_recipients:
