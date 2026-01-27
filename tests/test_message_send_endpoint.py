@@ -10,6 +10,7 @@ References:
 
 import base64
 import json
+import os
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, Mock, patch
@@ -152,8 +153,10 @@ class TestMessageSendEndpoint:
         device_registry.register_device("inactive-device", "public-key", "controller-1")
         # Don't provision or confirm - device remains inactive
         
-        # Disable auto-provisioning for this test by patching is_development
-        with patch.object(server_module, "is_development", False):
+        # Disable demo mode and auto-provisioning for this test
+        original_demo_mode = server_module.DEMO_MODE
+        with patch.object(server_module, "DEMO_MODE", False), \
+             patch.object(server_module, "is_development", False):
             payload = base64.b64encode(b"test message").decode("utf-8")
             
             response = client.post(
@@ -237,23 +240,28 @@ class TestMessageSendEndpoint:
     
     def test_send_message_conversation_not_found(self, client: TestClient) -> None:
         """Test send message to non-existent conversation returns 404."""
-        payload = base64.b64encode(b"test message").decode("utf-8")
+        import src.backend.server as server_module
         
-        response = client.post(
-            "/api/message/send",
-            json={
-                "conversation_id": "nonexistent-conv",
-                "payload": payload,
-            },
-            headers={"X-Device-ID": "sender-001"},
-        )
-        
-        # Backend returns 400 (not 404) for conversation_not_found per API contract
-        assert response.status_code == 400
-        data = response.json()
-        assert "error_code" in data
-        assert data["error_code"] == "conversation_not_found"
-        assert "message" in data
+        # Disable demo mode for this test to prevent auto-creation
+        original_demo_mode = server_module.DEMO_MODE
+        with patch.object(server_module, "DEMO_MODE", False):
+            payload = base64.b64encode(b"test message").decode("utf-8")
+            
+            response = client.post(
+                "/api/message/send",
+                json={
+                    "conversation_id": "nonexistent-conv",
+                    "payload": payload,
+                },
+                headers={"X-Device-ID": "sender-001"},
+            )
+            
+            # Backend returns 400 (not 404) for conversation_not_found per API contract
+            assert response.status_code == 400
+            data = response.json()
+            assert "error_code" in data
+            assert data["error_code"] == "conversation_not_found"
+            assert "message" in data
     
     def test_send_message_derives_expiration(self, client: TestClient) -> None:
         """Test send message without expiration derives from server timestamp + default expiration."""
@@ -317,6 +325,8 @@ class TestMessageSendEndpoint:
     
     def test_send_message_sender_not_participant(self, client: TestClient, conversation_registry: ConversationRegistry, device_registry: DeviceRegistry) -> None:
         """Test send message from non-participant returns 403 Forbidden."""
+        import src.backend.server as server_module
+        
         payload = base64.b64encode(b"test message").decode("utf-8")
         
         # Register recipient-002 so it can be a participant
@@ -330,17 +340,20 @@ class TestMessageSendEndpoint:
             ["recipient-001", "recipient-002"],  # sender-001 is NOT a participant
         )
         
-        response = client.post(
-            "/api/message/send",
-            json={
-                "conversation_id": "conv-not-participant",
-                "payload": payload,
-            },
-            headers={"X-Device-ID": "sender-001"},  # sender-001 is not a participant
-        )
-        
-        assert response.status_code == 403
-        assert "not a participant" in response.json()["detail"].lower()
+        # Disable demo mode for this test to prevent auto-adding participant
+        original_demo_mode = server_module.DEMO_MODE
+        with patch.object(server_module, "DEMO_MODE", False):
+            response = client.post(
+                "/api/message/send",
+                json={
+                    "conversation_id": "conv-not-participant",
+                    "payload": payload,
+                },
+                headers={"X-Device-ID": "sender-001"},  # sender-001 is not a participant
+            )
+            
+            assert response.status_code == 403
+            assert "not a participant" in response.json()["detail"].lower()
     
     def test_send_message_invalid_expiration(self, client: TestClient) -> None:
         """Test send message with invalid expiration (past timestamp) returns 400."""
@@ -371,24 +384,29 @@ class TestMessageSendEndpoint:
         This test demonstrates the current failure condition where frontend
         receives 400 responses due to missing prerequisite data (conversation).
         """
-        payload = base64.b64encode(b"test message").decode("utf-8")
+        import src.backend.server as server_module
         
-        response = client.post(
-            "/api/message/send",
-            json={
-                "conversation_id": "nonexistent-conv",
-                "payload": payload,
-            },
-            headers={"X-Device-ID": "sender-001"},
-        )
-        
-        # Backend returns 400 (not 404) for conversation_not_found per API contract
-        assert response.status_code == 400
-        # Verify structured error response format
-        data = response.json()
-        assert "error_code" in data
-        assert data["error_code"] == "conversation_not_found"
-        assert "message" in data
+        # Disable demo mode for this test to prevent auto-creation
+        original_demo_mode = server_module.DEMO_MODE
+        with patch.object(server_module, "DEMO_MODE", False):
+            payload = base64.b64encode(b"test message").decode("utf-8")
+            
+            response = client.post(
+                "/api/message/send",
+                json={
+                    "conversation_id": "nonexistent-conv",
+                    "payload": payload,
+                },
+                headers={"X-Device-ID": "sender-001"},
+            )
+            
+            # Backend returns 400 (not 404) for conversation_not_found per API contract
+            assert response.status_code == 400
+            # Verify structured error response format
+            data = response.json()
+            assert "error_code" in data
+            assert data["error_code"] == "conversation_not_found"
+            assert "message" in data
         assert "request_id" in data
     
     def test_send_message_plaintext_accepted_in_server_mode(self, client: TestClient) -> None:

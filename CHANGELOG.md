@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Message echo to sender in demo mode
+  - Sender receives their own messages via WebSocket for instant UI feedback
+  - Backend includes sender as recipient in demo mode
+  - Frontend accepts and renders self-sent messages (no filtering)
+- Normalized WebSocket message event schema
+  - All messages now include `type: "message"` field
+  - Added `sender_device_id` field (normalized) alongside `sender_id` (backward compatibility)
+  - Frontend handles both normalized and legacy message formats
 - Idempotent conversation creation with `ensureConversation()` method
   - POST `/api/conversation/create` now accepts optional `conversation_id` parameter
   - If conversation exists, returns existing conversation instead of error (idempotent behavior)
@@ -32,6 +40,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frontend banner warning when demo mode auto-creates conversations
 
 ### Fixed
+- Message delivery issues in demo mode
+  - Messages now echo to sender via WebSocket for instant UI feedback
+  - Backend no longer rejects sender-only conversations in demo mode
+  - Optimistic UI updates work correctly on 202 Accepted responses
+  - WebSocket handlers accept and render self-sent messages (no filtering)
+  - Event type normalization: all messages include `type: "message"` field
+  - Downgraded noisy log warnings for valid demo flows (warning → debug)
+- Critical: Fixed duplicate sender addition bug in message relay
+  - Fixed logic where sender_id could be added twice to valid_recipients list
+  - Sender echo logic now happens once, before storing delivery metadata
+  - Prevents duplicate message delivery attempts in demo mode scenarios
+  - Ensures sender is included exactly once in recipient list for message echo
+- Critical: Fixed production security issue with demo mode defaults
+  - Demo mode now only defaults to enabled in safe contexts (Heroku or explicit development environment)
+  - Production environments without Redis no longer default to demo mode (prevents accidental lenient validation)
+  - Demo mode requires explicit `DEMO_MODE=true` or `ENVIRONMENT=development` to enable in production
+  - Prevents security risk of lenient validation in production deployments
+- WebSocket message field handling
+  - Added validation for required fields (`id`, `conversation_id`, `timestamp`) before processing
+  - Added sender ID validation (requires `sender_device_id` or `sender_id` field)
+  - Added expiration field fallback (defaults to 7 days from timestamp if missing)
+  - Prevents runtime errors from undefined field access
+  - Maintains backward compatibility with legacy message formats
+- Test suite fixes for demo mode behavior
+  - Fixed `test_send_message_device_not_active` to disable demo mode for strict validation
+  - Fixed `test_send_message_conversation_not_found` to prevent auto-creation in tests
+  - Fixed `test_send_message_sender_not_participant` to prevent auto-adding participants
+  - Fixed `test_send_message_conversation_not_found_returns_structured_error` to test strict validation
+  - All tests now properly patch `DEMO_MODE` to `False` when testing strict validation behavior
 - Removed unused `encryptionMode` parameter from `ConversationApi.ensureConversation()` method
   - Parameter was defined but never used, causing TypeScript build errors on Heroku
   - Removed from method signature, JSDoc, and all call sites

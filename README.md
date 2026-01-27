@@ -346,6 +346,11 @@ git push heroku main
 
 **Demo Mode:**
 Demo mode (`DEMO_MODE=true`) enables reliable multi-device demos on Heroku by:
+- Defaulting to enabled on Heroku (detected via `DYNO` environment variable)
+- Defaulting to enabled in development environments (`ENVIRONMENT=development`, `dev`, or `local`)
+- **Production Safety**: Production environments without Redis will NOT default to demo mode
+  - Requires explicit `DEMO_MODE=true` to enable in production
+  - Prevents accidental lenient validation in production deployments
 - Allowing HTTP-first messaging without WebSocket dependency
 - Auto-registering devices on first request
 - Auto-creating conversations when sending to non-existent conversation ID
@@ -353,6 +358,7 @@ Demo mode (`DEMO_MODE=true`) enables reliable multi-device demos on Heroku by:
 - Using device activity TTL (5 minutes) instead of strict active state checks
 - Making WebSocket delivery best-effort (messages always queued for REST polling)
 - Not blocking message sends based on WebSocket connection status
+- **Message echo to sender**: Sender receives their own messages via WebSocket for instant UI feedback
 - Preserving encryption requirements (client or server mode enforced)
 
 **Multi-Device Demo Flow:**
@@ -414,6 +420,8 @@ The server will start on `http://127.0.0.1:8000` by default.
   - `server`: Accept plaintext payloads, encrypt server-side (dev/POC mode only)
 - `ENCRYPTION_KEY_SEED`: Seed for server-side encryption key (dev/POC mode only, default: `dev-mode-encryption-key-seed`)
 - `ENVIRONMENT`: Environment mode (default: `development`)
+  - `development`, `dev`, `local`: Development mode (permissive CORS, auto-provisioning, demo mode defaults to enabled)
+  - `production`: Production mode (strict CORS, no auto-provisioning, demo mode defaults to disabled)
 - `REDIS_URL`: Redis connection URL for persistent conversation storage (Heroku Redis addon)
   - If not set and `DEMO_MODE=true`: Falls back to in-memory store (state lost on restart)
   - If not set and `DEMO_MODE=false`: Raises error (Redis required for production)
@@ -423,8 +431,11 @@ The server will start on `http://127.0.0.1:8000` by default.
   - Conversations automatically expire after TTL
   - TTL preserved on updates (does not reset to full duration)
   - Configurable for different retention policies
-  - `development`, `dev`, `local`: Development mode (permissive CORS, auto-provisioning)
-  - `production`: Production mode (strict CORS, no auto-provisioning)
+- `DEMO_MODE`: Demo mode flag (default: auto-detected based on environment)
+  - Auto-enabled on Heroku (when `DYNO` environment variable is set)
+  - Auto-enabled in development environments (`ENVIRONMENT=development`, `dev`, or `local`)
+  - **Production Safety**: Defaults to disabled in production (requires explicit `DEMO_MODE=true` to enable)
+  - When enabled: HTTP-first messaging, lenient device validation, best-effort WebSocket delivery
 
 #### Frontend (UI)
 
@@ -532,6 +543,30 @@ In development mode, devices are automatically provisioned when they connect via
 - Error messages remain neutral and content-free (per Copy Rules #13)
 - No stack traces or backend details are exposed to users
 - Network errors are handled silently with automatic retries
+
+#### WebSocket Message Field Handling
+
+The WebSocket transport includes robust field validation and fallback handling to prevent runtime errors:
+
+**Required Field Validation:**
+- `id` (message ID): Must be present, otherwise message is silently ignored
+- `conversation_id`: Must be present, otherwise message is silently ignored
+- `timestamp`: Must be present, otherwise message is silently ignored
+
+**Optional Field Handling:**
+- `sender_device_id` / `sender_id`: At least one must be present (normalized `sender_device_id` preferred, `sender_id` for backward compatibility)
+- `expiration`: If missing, defaults to 7 days from message timestamp
+- `type`: Optional event type field (accepts `"message"` or `"ack"`, unknown types ignored)
+
+**Backward Compatibility:**
+- Supports both normalized (`sender_device_id`) and legacy (`sender_id`) field names
+- Accepts messages with or without `type` field
+- Unknown message types are silently ignored per deterministic rules
+
+**Error Handling:**
+- Missing required fields: Message is silently ignored (no error thrown)
+- Missing sender ID: Message is silently ignored (no error thrown)
+- Invalid field types: Handled gracefully with type coercion where possible
 
 #### WebSocket Resilience
 

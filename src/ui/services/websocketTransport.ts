@@ -134,6 +134,7 @@ export class WebSocketTransport implements MessageTransport {
       const parsed = JSON.parse(data);
 
       // Check if this is an ACK message (for sent messages)
+      // Also check for normalized message type
       if (parsed.type === "ack" && parsed.message_id) {
         // This is an ACK for a message we sent
         // Forward to message handler via callback
@@ -160,16 +161,43 @@ export class WebSocketTransport implements MessageTransport {
       }
 
       // Regular incoming message (not an ACK)
+      // Handle normalized event type: type: "message" with sender_device_id
+      // Also support backward compatibility with sender_id and messages without type field
+      // Accept messages with type: "message" or no type field (backward compatibility)
+      if (parsed.type && parsed.type !== "message" && parsed.type !== "ack") {
+        // Unknown message type - silently ignore
+        return;
+      }
+      
       const wsMessage: WebSocketMessage = parsed;
+      
+      // Validate required fields
+      if (!wsMessage.id || !wsMessage.conversation_id || !wsMessage.timestamp) {
+        // Missing required fields - silently ignore per deterministic rules
+        return;
+      }
+      
+      // Use normalized sender_device_id if present, fallback to sender_id for backward compatibility
+      // Validate that sender ID exists (required field)
+      const senderId = wsMessage.sender_device_id || wsMessage.sender_id;
+      if (!senderId) {
+        // Missing sender ID - silently ignore per deterministic rules
+        return;
+      }
+
+      // Handle optional expiration field with fallback (default: 7 days from timestamp)
+      const timestamp = new Date(wsMessage.timestamp);
+      const defaultExpiration = new Date(timestamp.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      const expiresAt = wsMessage.expiration ? new Date(wsMessage.expiration) : defaultExpiration;
 
       // Normalize to MessageViewModel
       const message: MessageViewModel = {
         message_id: wsMessage.id,
-        sender_id: wsMessage.sender_id,
+        sender_id: senderId,
         conversation_id: wsMessage.conversation_id,
         state: "delivered", // Incoming messages are already delivered
         created_at: wsMessage.timestamp,
-        expires_at: wsMessage.expiration,
+        expires_at: expiresAt.toISOString(),
         is_expired: false, // Will be checked by UI adapter
         is_failed: false,
         is_read_only: false, // Will be set by UI adapter based on device state

@@ -79,10 +79,12 @@ export interface MessageTransport {
  * Message format: JSON {id, conversation_id, payload, timestamp, sender_id, expiration}
  */
 export interface WebSocketMessage {
+  type?: string; // Normalized event type: "message" (optional for backward compatibility)
   id: string; // Message ID
   conversation_id: string;
   payload: string; // Hex-encoded encrypted payload
   timestamp: string; // ISO datetime string
-  sender_id: string;
-  expiration: string; // ISO datetime string
+  sender_id?: string; // Backward compatibility
+  sender_device_id?: string; // Normalized field name
+  expiration?: string; // ISO datetime string (optional)
 }
