@@ -108,6 +108,18 @@ export const MessageRow: React.FC<MessageRowProps> = ({
           <div className="text-sm text-gray-600">
             {formatTimestamp(message.created_at)}
           </div>
+          {/* Display message payload or placeholder for encrypted content */}
+          {message.payload ? (
+            <div className="text-sm text-gray-800 mt-2">
+              {/* TODO: Decrypt and display payload when decryption is implemented */}
+              {/* For now, show placeholder for encrypted messages */}
+              [encrypted message]
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500 mt-2 italic">
+              [no content]
+            </div>
+          )}
           {showDebugInfo && (
             <div className="text-xs text-gray-400 mt-1 space-y-0.5">
               <div>ID: {message.message_id}</div>

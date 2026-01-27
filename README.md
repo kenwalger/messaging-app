@@ -568,6 +568,12 @@ The WebSocket transport includes robust field validation and fallback handling t
 - Missing sender ID: Message is silently ignored (no error thrown)
 - Invalid field types: Handled gracefully with type coercion where possible
 
+**Payload Preservation:**
+- WebSocket message payload is preserved end-to-end from backend to UI
+- Payload field is included in MessageViewModel when constructing from WebSocket messages
+- UI displays "[encrypted message]" placeholder for encrypted payloads (decryption not yet implemented)
+- DEV-only console warning logged when messages are received without payload field (schema mismatch detection)
+
 #### WebSocket Resilience
 
 The frontend implements automatic resilience for WebSocket connections:
