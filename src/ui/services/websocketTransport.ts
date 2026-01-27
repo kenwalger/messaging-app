@@ -191,6 +191,7 @@ export class WebSocketTransport implements MessageTransport {
       const expiresAt = wsMessage.expiration ? new Date(wsMessage.expiration) : defaultExpiration;
 
       // Normalize to MessageViewModel
+      // Include payload to preserve message content end-to-end
       const message: MessageViewModel = {
         message_id: wsMessage.id,
         sender_id: senderId,
@@ -202,7 +203,17 @@ export class WebSocketTransport implements MessageTransport {
         is_failed: false,
         is_read_only: false, // Will be set by UI adapter based on device state
         display_state: "delivered",
+        payload: wsMessage.payload, // Preserve payload from WebSocket message
       };
+      
+      // DEV-only: Log if payload is missing (schema mismatch detection)
+      if (import.meta.env.DEV && !wsMessage.payload) {
+        console.warn("[WebSocketTransport] Message received without payload field:", {
+          message_id: wsMessage.id,
+          conversation_id: wsMessage.conversation_id,
+          has_payload: !!wsMessage.payload,
+        });
+      }
 
       // Send ACK to backend for received message
       this._sendAck(wsMessage.id, wsMessage.conversation_id);

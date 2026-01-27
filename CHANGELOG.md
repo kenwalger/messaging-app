@@ -40,6 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frontend banner warning when demo mode auto-creates conversations
 
 ### Fixed
+- Critical: WebSocket message payload preservation
+  - Fixed bug where WebSocket messages were received but not displayed in UI
+  - Payload field was being dropped when normalizing WebSocket messages to MessageViewModel
+  - Payload is now preserved end-to-end from WebSocket to UI display
+  - UI displays "[encrypted message]" placeholder for encrypted payloads (decryption TODO)
+  - Added DEV-only console warning when messages are received without payload field
+  - Message metadata (sender, timestamp, conversation_id) remains unchanged
 - Message delivery issues in demo mode
   - Messages now echo to sender via WebSocket for instant UI feedback
   - Backend no longer rejects sender-only conversations in demo mode

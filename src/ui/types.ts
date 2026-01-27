@@ -43,6 +43,7 @@ export interface MessageViewModel {
   is_failed: boolean;
   is_read_only: boolean;
   display_state: "expired" | "failed" | "queued" | "delivered" | "unknown";
+  payload?: string; // Encrypted payload (hex-encoded) - optional for backward compatibility
 }
 
 /**
