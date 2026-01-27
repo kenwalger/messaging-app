@@ -351,15 +351,22 @@ Demo mode (`DEMO_MODE=true`) enables reliable multi-device demos on Heroku by:
 - **Production Safety**: Production environments without Redis will NOT default to demo mode
   - Requires explicit `DEMO_MODE=true` to enable in production
   - Prevents accidental lenient validation in production deployments
+- **Automatic device activation**: Any previously unseen `device_id` is automatically registered as ACTIVE on first contact
+  - Devices are registered, provisioned, and confirmed automatically
+  - `is_device_active()` always returns True in demo mode (after auto-registration if needed)
+  - Browser-generated device_ids work without manual provisioning
+- **Automatic conversation creation**: Missing conversations are auto-created with all connected devices
+  - Includes sending device and all WebSocket-connected devices as participants
+  - Prevents `conversation_not_found` errors in multi-device demos
+  - Works reliably across multiple Heroku dynos with Redis
 - Allowing HTTP-first messaging without WebSocket dependency
-- Auto-registering devices on first request
-- Auto-creating conversations when sending to non-existent conversation ID
 - Auto-adding devices as participants when sending to existing conversation (prevents 403 errors)
 - Using device activity TTL (5 minutes) instead of strict active state checks
 - Making WebSocket delivery best-effort (messages always queued for REST polling)
 - Not blocking message sends based on WebSocket connection status
 - **Message echo to sender**: Sender receives their own messages via WebSocket for instant UI feedback
 - Preserving encryption requirements (client or server mode enforced)
+- Clear logging when demo-mode auto-activation or auto-creation occurs
 
 **Multi-Device Demo Flow:**
 1. First device opens app → generates unique device ID → ensures conversation exists (idempotent creation) → displays conversation ID in sidebar

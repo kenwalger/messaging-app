@@ -997,10 +997,16 @@ async def send_message(
     # This handles cases where conversation was created on a different dyno or lost due to restart
     if not conversation_exists and DEMO_MODE:
         logger.warning(f"[DEMO MODE] Auto-creating conversation {conversation_id} for device {device_id} during message send (conversation_not_found)")
-        # Create conversation with the sending device as the first participant
+        # Get all connected devices for demo conversation (include sender and all WebSocket connections)
+        websocket_manager = get_websocket_manager()
+        connected_devices = websocket_manager.get_connected_device_ids()
+        # Ensure sender is included (may not be connected via WebSocket yet)
+        demo_participants = list(set([device_id] + connected_devices))
+        logger.info(f"[DEMO MODE] Auto-creating conversation {conversation_id} with participants: {demo_participants}")
+        # Create conversation with the sending device and all connected devices as participants
         success = conversation_registry.register_conversation(
             conversation_id=conversation_id,
-            participants=[device_id],
+            participants=demo_participants,
         )
         if success:
             conversation_was_auto_created = True

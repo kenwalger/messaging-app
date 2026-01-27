@@ -40,6 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frontend banner warning when demo mode auto-creates conversations
 
 ### Fixed
+- Critical: Enhanced demo mode for reliable multi-device messaging
+  - `is_device_active()` now auto-registers unregistered devices as ACTIVE in demo mode
+  - Devices are automatically registered, provisioned, and confirmed on first contact
+  - Conversation auto-creation now includes all connected WebSocket devices as participants
+  - Message relay no longer drops messages in demo mode due to identity/conversation checks
+  - All browser-generated device_ids work automatically in demo mode without manual provisioning
+  - Clear logging when demo-mode auto-activation or auto-creation occurs
 - Critical: WebSocket message payload preservation
   - Fixed bug where WebSocket messages were received but not displayed in UI
   - Payload field was being dropped when normalizing WebSocket messages to MessageViewModel

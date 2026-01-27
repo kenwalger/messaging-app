@@ -156,14 +156,13 @@ class MessageRelayService:
             True if message queued for delivery, False if expired or invalid
         """
         # Validate sender identity per API Contracts (#10), Section 5
-        # In demo mode, this check is lenient (activity TTL used instead)
+        # In demo mode, is_device_active() auto-registers unregistered devices and always returns True
+        demo_mode = getattr(self.device_registry, '_demo_mode', False)
         if not self.device_registry.is_device_active(sender_id):
-            # Check if we're in demo mode (via device registry)
-            # In demo mode, allow message relay even if device not strictly active
-            # WebSocket delivery becomes best-effort, not authorization requirement
-            demo_mode = getattr(self.device_registry, '_demo_mode', False)
+            # In demo mode, is_device_active() should have auto-registered the device
+            # If it still returns False, something went wrong but we continue in demo mode
             if demo_mode:
-                logger.debug(f"[DEMO MODE] Allowing message relay for {sender_id} (activity TTL)")
+                logger.debug(f"[DEMO MODE] Device {sender_id} not active after auto-registration check, but allowing relay (best-effort)")
             else:
                 logger.warning(f"Invalid or revoked sender device: {sender_id}")
                 return False
