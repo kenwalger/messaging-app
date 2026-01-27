@@ -176,11 +176,18 @@ if ENCRYPTION_MODE not in ("server", "client"):
 # Demo mode configuration
 # When enabled, allows HTTP-first messaging with lenient device validation
 # WebSockets become best-effort delivery, not authorization requirement
-# Default to TRUE on Heroku (detected by DYNO env var - Heroku-specific)
-# Default to TRUE for local development (when REDIS_URL not set) for easier local testing
+# Default to TRUE only in safe development contexts:
+#   - Heroku (detected by DYNO env var - Heroku-specific)
+#   - Explicit development environment (ENVIRONMENT=development or dev or local)
+# Default to FALSE in production to prevent accidental lenient validation
 # DYNO is set by Heroku and uniquely identifies Heroku platform (not set by Docker/Railway/Render)
 _has_redis = bool(os.getenv("REDIS_URL"))
-_demo_mode_default = "true" if (os.getenv("DYNO") or not _has_redis) else "false"
+_is_heroku = bool(os.getenv("DYNO"))
+_environment = os.getenv("ENVIRONMENT", "").lower()
+_is_development = _environment in ("development", "dev", "local")
+# Only default to demo mode in safe contexts (Heroku or explicit development environment)
+# Production environments without Redis should NOT default to demo mode
+_demo_mode_default = "true" if (_is_heroku or _is_development) else "false"
 DEMO_MODE = os.getenv("DEMO_MODE", _demo_mode_default).lower() in ("true", "1", "yes", "on")
 if DEMO_MODE:
     logger.info("🧪 DEMO MODE ENABLED - WebSocket optional, encryption enforced, lenient device validation")

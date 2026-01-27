@@ -346,7 +346,11 @@ git push heroku main
 
 **Demo Mode:**
 Demo mode (`DEMO_MODE=true`) enables reliable multi-device demos on Heroku by:
-- Defaulting to enabled when `REDIS_URL` is not set (local development)
+- Defaulting to enabled on Heroku (detected via `DYNO` environment variable)
+- Defaulting to enabled in development environments (`ENVIRONMENT=development`, `dev`, or `local`)
+- **Production Safety**: Production environments without Redis will NOT default to demo mode
+  - Requires explicit `DEMO_MODE=true` to enable in production
+  - Prevents accidental lenient validation in production deployments
 - Allowing HTTP-first messaging without WebSocket dependency
 - Auto-registering devices on first request
 - Auto-creating conversations when sending to non-existent conversation ID
@@ -416,6 +420,8 @@ The server will start on `http://127.0.0.1:8000` by default.
   - `server`: Accept plaintext payloads, encrypt server-side (dev/POC mode only)
 - `ENCRYPTION_KEY_SEED`: Seed for server-side encryption key (dev/POC mode only, default: `dev-mode-encryption-key-seed`)
 - `ENVIRONMENT`: Environment mode (default: `development`)
+  - `development`, `dev`, `local`: Development mode (permissive CORS, auto-provisioning, demo mode defaults to enabled)
+  - `production`: Production mode (strict CORS, no auto-provisioning, demo mode defaults to disabled)
 - `REDIS_URL`: Redis connection URL for persistent conversation storage (Heroku Redis addon)
   - If not set and `DEMO_MODE=true`: Falls back to in-memory store (state lost on restart)
   - If not set and `DEMO_MODE=false`: Raises error (Redis required for production)
@@ -425,8 +431,11 @@ The server will start on `http://127.0.0.1:8000` by default.
   - Conversations automatically expire after TTL
   - TTL preserved on updates (does not reset to full duration)
   - Configurable for different retention policies
-  - `development`, `dev`, `local`: Development mode (permissive CORS, auto-provisioning)
-  - `production`: Production mode (strict CORS, no auto-provisioning)
+- `DEMO_MODE`: Demo mode flag (default: auto-detected based on environment)
+  - Auto-enabled on Heroku (when `DYNO` environment variable is set)
+  - Auto-enabled in development environments (`ENVIRONMENT=development`, `dev`, or `local`)
+  - **Production Safety**: Defaults to disabled in production (requires explicit `DEMO_MODE=true` to enable)
+  - When enabled: HTTP-first messaging, lenient device validation, best-effort WebSocket delivery
 
 #### Frontend (UI)
 

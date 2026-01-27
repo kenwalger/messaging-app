@@ -52,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Sender echo logic now happens once, before storing delivery metadata
   - Prevents duplicate message delivery attempts in demo mode scenarios
   - Ensures sender is included exactly once in recipient list for message echo
+- Critical: Fixed production security issue with demo mode defaults
+  - Demo mode now only defaults to enabled in safe contexts (Heroku or explicit development environment)
+  - Production environments without Redis no longer default to demo mode (prevents accidental lenient validation)
+  - Demo mode requires explicit `DEMO_MODE=true` or `ENVIRONMENT=development` to enable in production
+  - Prevents security risk of lenient validation in production deployments
 - WebSocket message field handling
   - Added validation for required fields (`id`, `conversation_id`, `timestamp`) before processing
   - Added sender ID validation (requires `sender_device_id` or `sender_id` field)
