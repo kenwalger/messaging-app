@@ -235,35 +235,49 @@ class DeviceRegistry:
             # Demo mode: Auto-register unregistered devices and always return True
             if self._demo_mode:
                 if device is None:
-                    # Auto-register device in demo mode on first contact
-                    try:
-                        self.register_device(device_id, "demo-public-key", "demo-controller")
-                        self.provision_device(device_id)
-                        self.confirm_provisioning(device_id)
-                        # Mark device as seen to refresh activity TTL
-                        self.mark_device_seen(device_id)
-                        logger.info(f"[DEMO MODE] Auto-registered device {device_id} as ACTIVE via is_device_active()")
-                        return True
-                    except Exception as e:
-                        logger.warning(f"[DEMO MODE] Failed to auto-register device {device_id} in is_device_active(): {e}")
-                        # In demo mode, still return True even if registration fails
-                        # (device may have been registered by another request)
-                        return True
-                
-                # Check activity TTL for existing devices
-                last_seen = self._device_last_seen.get(device_id)
-                if last_seen:
-                    time_since_seen = utc_now() - last_seen
-                    if time_since_seen <= self._demo_activity_ttl:
-                        # Device seen within TTL window - consider active for demo purposes
-                        return True
-                
-                # In demo mode, always return True for any device (even if not strictly active)
+                    # Release lock before calling registration methods (they acquire their own locks)
+                    # This prevents deadlock when calling register_device(), provision_device(), etc.
+                    pass  # Will handle after lock release
+                else:
+                    # Check activity TTL for existing devices
+                    last_seen = self._device_last_seen.get(device_id)
+                    if last_seen:
+                        time_since_seen = utc_now() - last_seen
+                        if time_since_seen <= self._demo_activity_ttl:
+                            # Device seen within TTL window - consider active for demo purposes
+                            return True
+                    
+                    # In demo mode, always return True for any existing device (even if not strictly active)
+                    return True
+        
+        # Outside lock: Auto-register unregistered devices in demo mode
+        # This must be done outside the lock to prevent deadlock
+        if self._demo_mode and device is None:
+            try:
+                # These methods acquire their own locks, so we call them outside our lock
+                self.register_device(device_id, "demo-public-key", "demo-controller")
+                self.provision_device(device_id)
+                self.confirm_provisioning(device_id)
+                # Mark device as seen to refresh activity TTL
+                self.mark_device_seen(device_id)
+                logger.info(f"[DEMO MODE] Auto-registered device {device_id} as ACTIVE via is_device_active()")
                 return True
-            
+            except Exception as e:
+                logger.warning(f"[DEMO MODE] Failed to auto-register device {device_id} in is_device_active(): {e}")
+                # In demo mode, still return True even if registration fails
+                # (device may have been registered by another request)
+                return True
+        
+        # Re-check device after potential auto-registration (outside lock to avoid deadlock)
+        if self._demo_mode:
+            # In demo mode, always return True (device was either already active or auto-registered)
+            return True
+        
+        # Production mode: Check if device exists and is active
+        with self._device_lock:
+            device = self._devices.get(device_id)
             if device is None:
                 return False
-            
             return device.is_active()
     
     def mark_device_seen(self, device_id: str) -> None:

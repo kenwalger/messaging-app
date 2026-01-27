@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Critical: Enhanced demo mode for reliable multi-device messaging
   - `is_device_active()` now auto-registers unregistered devices as ACTIVE in demo mode
+  - Fixed critical deadlock bug where lock was held while calling lock-acquiring methods
+  - Auto-registration now happens outside lock to prevent deadlock
   - Devices are automatically registered, provisioned, and confirmed on first contact
   - Conversation auto-creation now includes all connected WebSocket devices as participants
   - Message relay no longer drops messages in demo mode due to identity/conversation checks
