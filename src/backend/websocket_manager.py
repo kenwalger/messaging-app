@@ -224,3 +224,14 @@ class FastAPIWebSocketManager:
             WebSocket instance if connected, None otherwise.
         """
         return self._connections.get(device_id)
+    
+    def get_connected_device_ids(self) -> list[str]:
+        """
+        Get list of all currently connected device IDs.
+        
+        Useful for demo mode auto-creation of conversations with all connected devices.
+        
+        Returns:
+            List of device IDs that have active WebSocket connections.
+        """
+        return list(self._connections.keys())
